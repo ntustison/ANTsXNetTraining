@@ -148,4 +148,3 @@ track = vgg16_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=50,
        ]
    )
 
-unet_model.save_weights(weights_filename)
