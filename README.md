@@ -1,1 +1,1 @@
-# ANTsXNetTraining
+# ANTsXNet Training Scripts
