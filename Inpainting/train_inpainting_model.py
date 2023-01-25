@@ -197,7 +197,7 @@ def loss_total(x_mask):
         vgg_comp = vgg16_model(y_comp)
 
         #Compute loss components
-        l1 = loss_valid(x_mask, y_true, y_pred)
+        l1 = K.cast(loss_valid(x_mask, y_true, y_pred), 'float32')
         l2 = K.cast(loss_hole(x_mask, y_true, y_pred), 'float32')
         l3 = K.cast(loss_perceptual(vgg_out, vgg_gt, vgg_comp), 'float32')
         l4 = K.cast(loss_style(vgg_out, vgg_gt), 'float32')
@@ -232,7 +232,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 32
+batch_size = 8
 image_size = (256, 256, 3)
 
 generator = batch_generator(batch_size=batch_size,
@@ -245,19 +245,18 @@ generator = batch_generator(batch_size=batch_size,
                             do_data_augmentation=False
                             )
 
-# loss_fn = l1
-
 inpainting_weights_filename = scripts_directory + "t1_inpainting_weights.h5"
 if os.path.exists(inpainting_weights_filename):
     inpainting_unet.load_weights(inpainting_weights_filename)
 
 inpainting_unet.compile()
+# optimizer=keras.optimizers.SGD(learning_rate=0.02)
 optimizer=keras.optimizers.Adam(learning_rate=2e-4)
 train_acc_metric = keras.metrics.MeanSquaredError()
 val_acc_metric = keras.metrics.MeanSquaredError()
 
 number_of_epochs = 200
-steps_per_epoch = 50
+steps_per_epoch = 32
 validation_steps = 5
 
 minimum_value = 1000000000
@@ -290,6 +289,7 @@ for epoch in range(number_of_epochs):
     print("Training acc over epoch: %.4f" % (float(train_acc),))
 
     if float(train_acc,) < minimum_value:
+        print("Metric improved from " + str(minimum_value) + " to " + str(float(train_acc,)))
         print("Saving " + inpainting_weights_filename)
         inpainting_unet.save_weights(inpainting_weights_filename)
         minimum_value = float(train_acc,)

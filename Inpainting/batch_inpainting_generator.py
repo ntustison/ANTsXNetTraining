@@ -17,8 +17,8 @@ def batch_generator(batch_size=32,
     def create_random_mask(domain_image,
                            max_number_of_points=100,
                            max_mesh_size=10):
-        number_of_points = random.randint(1, max_number_of_points)
-        mesh_size = random.randint(1, max_mesh_size)
+        number_of_points = random.randint(10, max_number_of_points)
+        mesh_size = random.randint(5, max_mesh_size)
         log_field = antspynet.simulate_bias_field(domain_image,
                                                  number_of_points=number_of_points,
                                                  mesh_size=mesh_size)
@@ -27,7 +27,7 @@ def batch_generator(batch_size=32,
         field_image = ants.from_numpy(field_array, origin=domain_image.origin,
                spacing=domain_image.spacing, direction=domain_image.direction)
         field_image = (field_image - field_image.mean()) / field_image.std()
-        mask = ants.threshold_image(field_image, -1.5, 1.5, 1, 0)
+        mask = ants.threshold_image(field_image, -1.35, 1.35, 1, 0)
         return mask
 
     verbose = False
@@ -36,7 +36,7 @@ def batch_generator(batch_size=32,
 
     template_lower = 58 + 10
     template_upper = 188 - 10
-    slices_per_subject = 5
+    slices_per_subject = 4
 
     while True:
 
@@ -85,10 +85,9 @@ def batch_generator(batch_size=32,
                 t1 = data_augmentation['simulated_images'][0][0]
                 brain_mask = data_augmentation['simulated_segmentation_images'][0]
 
-            if verbose:
-                print("    Histogram intensity warping.")
-
             if do_histogram_intensity_warping and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Histogram intensity warping.")
                 break_points = [0.2, 0.4, 0.6, 0.8]
                 displacements = list()
                 for b in range(len(break_points)):
@@ -99,18 +98,18 @@ def batch_generator(batch_size=32,
                     break_points=break_points, clamp_end_points=(True, False),
                     displacements=displacements)
 
-            if verbose:
-                print("    Add noise.")
 
             if do_add_noise and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Add noise.")
                 t1 = (t1 - t1.min()) / (t1.max() - t1.min())
                 noise_parameters = (0.0, random.uniform(0, 0.05))
                 t1 = ants.add_noise_to_image(t1, noise_model="additivegaussian", noise_parameters=noise_parameters)
 
-            if verbose:
-                print("    Simulate bias field.")
-
             if do_simulate_bias_field and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Simulate bias field.")
+
                 log_field = antspynet.simulate_bias_field(t1, number_of_points=10, sd_bias_field=1.0,
                              number_of_fitting_levels=2, mesh_size=10)
                 log_field = log_field.iMath("Normalize")
@@ -120,7 +119,7 @@ def batch_generator(batch_size=32,
 
             quantiles = (t1.quantile(0.01), t1.quantile(0.99))
             t1[t1 < quantiles[0]] = quantiles[0]
-            t1[t1 < quantiles[1]] = quantiles[1]
+            t1[t1 > quantiles[1]] = quantiles[1]
 
             mask = create_random_mask(t1)
             t1_masked = t1 * mask
