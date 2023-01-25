@@ -102,7 +102,7 @@ def batch_generator(batch_size=32,
 
             quantiles = (t1.quantile(0.01), t1.quantile(0.99))
             t1[t1 < quantiles[0]] = quantiles[0]
-            t1[t1 < quantiles[1]] = quantiles[1]
+            t1[t1 > quantiles[1]] = quantiles[1]
 
             slice_numbers = random.sample(list(range(template_lower, template_upper)), slices_per_subject)
 
