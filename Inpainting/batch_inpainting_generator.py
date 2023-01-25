@@ -135,7 +135,8 @@ def batch_generator(batch_size=32,
                 mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
                 mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
 
-                slice_masked = slice * mask_slice 
+                slice_masked = slice * mask_slice
+                slice_masked[mask_slice == 0] = 1
 
                 X[batch_count,:,:,0] = slice_masked.numpy()
                 X[batch_count,:,:,1] = slice_masked.numpy()
