@@ -2,7 +2,7 @@ import ants
 import antspynet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import glob
 import pandas as pd
 import numpy as np

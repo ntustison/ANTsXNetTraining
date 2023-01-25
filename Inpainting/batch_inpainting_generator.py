@@ -128,14 +128,14 @@ def batch_generator(batch_size=32,
             for i in range(len(slice_numbers)):
                 slice = ants.slice_image(t1, axis=1, idx=slice_numbers[i], collapse_strategy=1)
                 slice = antspynet.pad_or_crop_image_to_size(slice, image_size)
-                slice = (slice - slice.mean()) / slice.std()
-
-                slice_masked = ants.slice_image(t1_masked, axis=1, idx=slice_numbers[i], collapse_strategy=1)
-                slice_masked = antspynet.pad_or_crop_image_to_size(slice_masked, image_size)
-                slice_masked = (slice_masked - slice_masked.mean()) / slice_masked.std()
+                slice = (slice - slice.min()) / (slice.max() - slice.min())
 
                 mask_slice = ants.slice_image(mask, axis=1, idx=slice_numbers[i], collapse_strategy=1)
-                mask_slice = antspynet.pad_or_crop_image_to_size(mask_slice, image_size)
+                mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
+                mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
+                mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
+
+                slice_masked = slice * mask_slice 
 
                 X[batch_count,:,:,0] = slice_masked.numpy()
                 X[batch_count,:,:,1] = slice_masked.numpy()

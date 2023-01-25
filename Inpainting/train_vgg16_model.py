@@ -137,7 +137,7 @@ generator = batch_generator(batch_size=batch_size,
                             )
 
 
-track = vgg16_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=50,
+track = vgg16_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,
     callbacks=[
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
