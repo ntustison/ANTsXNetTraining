@@ -116,17 +116,9 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 ################################################
 
 inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 do_batch_normalization=True)
+                                                                                 batch_normalization_training=True)
 
 def loss_total(x_mask):
-
-    # def l1_norm(y_true, y_pred):
-    #     if len(y_true.shape) == 4:
-    #         return tf.math.reduce_mean(K.abs(y_pred - y_true))
-    #     elif len(y_true.shape) == 3:
-    #         return tf.math.reduce_mean(K.abs(y_pred - y_true))
-    #     else:
-    #         raise NotImplementedError("Calculating L1 loss on 1D tensors? should not occur for this network")
 
     def l1_norm(y_true, y_pred):
         if len(y_true.shape) == 4:
