@@ -115,7 +115,8 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 #
 ################################################
 
-inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size)
+inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
+                                                                                 do_batch_normalization=True)
 
 def loss_total(x_mask):
 
@@ -232,7 +233,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 16 
+batch_size = 16
 image_size = (256, 256, 3)
 
 generator = batch_generator(batch_size=batch_size,
