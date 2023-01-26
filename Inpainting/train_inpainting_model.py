@@ -288,11 +288,11 @@ for epoch in range(number_of_epochs):
     train_acc = train_acc_metric.result()
     print("Training acc over epoch: %.4f" % (float(train_acc),))
 
-    if float(loss_value) < minimum_value:
-        print("Loss improved from " + str(minimum_value) + " to " + str(float(loss_value)))
+    if float(train_acc) < minimum_value:
+        print("Metric improved from " + str(minimum_value) + " to " + str(float(train_acc)))
         print("Saving " + inpainting_weights_filename)
         inpainting_unet.save_weights(inpainting_weights_filename)
-        minimum_value = float(loss_value)
+        minimum_value = float(train_acc)
 
     # Reset training metrics at the end of each epoch
     train_acc_metric.reset_states()
