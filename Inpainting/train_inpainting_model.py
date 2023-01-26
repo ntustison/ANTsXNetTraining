@@ -232,7 +232,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 8
+batch_size = 16 
 image_size = (256, 256, 3)
 
 generator = batch_generator(batch_size=batch_size,
@@ -257,7 +257,7 @@ val_acc_metric = keras.metrics.MeanSquaredError()
 
 number_of_epochs = 200
 steps_per_epoch = 32
-validation_steps = 5
+validation_steps = 1
 
 minimum_value = 1000000000
 
@@ -288,11 +288,11 @@ for epoch in range(number_of_epochs):
     train_acc = train_acc_metric.result()
     print("Training acc over epoch: %.4f" % (float(train_acc),))
 
-    if float(train_acc,) < minimum_value:
-        print("Metric improved from " + str(minimum_value) + " to " + str(float(train_acc,)))
+    if float(loss_value) < minimum_value:
+        print("Loss improved from " + str(minimum_value) + " to " + str(float(loss_value)))
         print("Saving " + inpainting_weights_filename)
         inpainting_unet.save_weights(inpainting_weights_filename)
-        minimum_value = float(train_acc,)
+        minimum_value = float(loss_value)
 
     # Reset training metrics at the end of each epoch
     train_acc_metric.reset_states()
