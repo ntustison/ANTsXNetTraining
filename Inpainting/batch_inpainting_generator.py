@@ -2,12 +2,14 @@ import numpy as np
 import random
 import ants
 import antspynet
+import cv2
 
 
 def batch_generator(batch_size=32,
                     t1s=None,
                     image_size=None,
                     template=None,
+                    add_2d_masking=True,
                     do_histogram_intensity_warping=True,
                     do_simulate_bias_field=True,
                     do_add_noise=True,
@@ -28,6 +30,38 @@ def batch_generator(batch_size=32,
                spacing=domain_image.spacing, direction=domain_image.direction)
         field_image = (field_image - field_image.mean()) / field_image.std()
         mask = ants.threshold_image(field_image, -1.35, 1.35, 1, 0)
+        return mask
+
+    def create_random_mask_2d(domain_image,
+                              max_number_of_lines=5,
+                              max_line_thickness=8,
+                              max_number_of_ellipses=5):
+        image_array = np.zeros((*domain_image.shape, 3))
+
+        # Draw random lines
+        for _ in range(random.randint(1, max_number_of_lines)):
+            x1 = random.randint(1, domain_image.shape[0])
+            x2 = random.randint(1, domain_image.shape[0])
+            y1 = random.randint(1, domain_image.shape[1])
+            y2 = random.randint(1, domain_image.shape[1])
+            thickness = random.randint(1, max_line_thickness)
+            cv2.line(image_array, (x1, y1), (x2, y2), (1, 1, 1), thickness)
+
+        # Draw random ellipses
+        for _ in range(random.randint(1, max_number_of_ellipses)):
+            x1 = random.randint(1, domain_image.shape[0])
+            x2 = random.randint(1, domain_image.shape[0])
+            s1 = random.randint(1, domain_image.shape[1])
+            s2 = random.randint(1, domain_image.shape[1])
+            a1 = random.randint(1, 180)
+            a2 = random.randint(1, 180)
+            a3 = random.randint(1, 180)
+            cv2.ellipse(image_array, (x1, y1), (s1, s2), a1, a2, a3, (1, 1, 1), -1)
+
+        image = ants.from_numpy(np.squeeze(image_array[:,:,0]), origin=domain_image.origin,
+            spacing=domain_image.spacing, direction=domain_image.direction)
+
+        mask = image * -1.0 + 1
         return mask
 
     verbose = False
@@ -122,7 +156,6 @@ def batch_generator(batch_size=32,
             t1[t1 > quantiles[1]] = quantiles[1]
 
             mask = create_random_mask(t1)
-            t1_masked = t1 * mask
 
             slice_numbers = random.sample(list(range(template_lower, template_upper)), slices_per_subject)
             for i in range(len(slice_numbers)):
@@ -131,6 +164,8 @@ def batch_generator(batch_size=32,
                 slice = (slice - slice.min()) / (slice.max() - slice.min())
 
                 mask_slice = ants.slice_image(mask, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                if add_2d_masking:
+                    mask_slice = create_random_mask_2d(mask_slice) * mask_slice
                 mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
                 mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
                 mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
