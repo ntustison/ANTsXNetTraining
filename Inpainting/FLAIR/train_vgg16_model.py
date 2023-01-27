@@ -51,7 +51,7 @@ vgg16_model = antspynet.create_vgg_model_2d((224, 224, 3),
 vgg16_model.compile(optimizer=keras.optimizers.Adam(learning_rate=2e-4),
                    loss="mse")
 
-weights_filename = scripts_directory + "vgg16_imagenet_flairbrain_weights.h5"
+weights_filename = scripts_directory + "/vgg16_imagenet_flairbrain_weights.h5"
 if os.path.exists(weights_filename):
     vgg16_model.load_weights(weights_filename)
 else:

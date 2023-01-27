@@ -47,7 +47,7 @@ def batch_generator(batch_size=32,
             translation = np.asarray(center_of_mass_image) - np.asarray(center_of_mass_template)
             xfrm = ants.create_ants_transform(transform_type="Euler3DTransform",
                 center=np.asarray(center_of_mass_template), translation=translation)
-            t1 = xfrm.apply_to_image(t1, template)
+            t1 = xfrm.apply_to_image(t1, template, interpolation="nearestneighbor")
 
             if do_data_augmentation == True:
                 data_augmentation = antspynet.randomly_transform_image_data(template,
