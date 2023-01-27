@@ -50,8 +50,8 @@ def batch_generator(batch_size=32,
         # Draw random ellipses
         for _ in range(random.randint(1, max_number_of_ellipses)):
             x1 = random.randint(1, domain_image.shape[0])
-            x2 = random.randint(1, domain_image.shape[0])
-            s1 = random.randint(1, domain_image.shape[1])
+            y1 = random.randint(1, domain_image.shape[1])
+            s1 = random.randint(1, domain_image.shape[0])
             s2 = random.randint(1, domain_image.shape[1])
             a1 = random.randint(1, 180)
             a2 = random.randint(1, 180)
