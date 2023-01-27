@@ -74,6 +74,8 @@ else:
 
 print("Loading brain data.")
 
+# Load open neuro data
+
 flair_files = glob.glob("/home/ntustison/Data/OpenNeuro/Nifti/sub*/ses*/anat/*FLAIR.nii.gz")
 demo = pd.read_csv("/home/ntustison/Data/OpenNeuro/Nifti/participants_ageonly.csv")
 
@@ -86,6 +88,20 @@ for i in range(len(flair_files)):
     if subject_row.shape[0] == 1:
         flair_images.append(flair_files[i])
         flair_ages.append(int(subject_row['age']))
+
+# Load Kirby data
+
+flair_files = glob.glob("/home/ntustison/Data/Kirby/Images/*FLAIR*.nii.gz")
+demo = pd.read_csv("/home/ntustison/Data/Kirby/kirby.csv")
+
+for i in range(len(flair_files)):
+    subject_id = os.path.basename(flair_files[i])
+    subject_id = subject_id.split('-FLAIR')[0]
+    subject_row = demo[demo['Subject'] == subject_id]
+    if subject_row.shape[0] == 1:
+        flair_images.append(flair_files[i])
+        flair_ages.append(int(subject_row['Age']))
+
 
 if len(flair_images) == 0:
     raise ValueError("NO training data.")
