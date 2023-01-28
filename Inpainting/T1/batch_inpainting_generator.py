@@ -9,16 +9,18 @@ def batch_generator(batch_size=32,
                     t1s=None,
                     image_size=None,
                     template=None,
-                    add_2d_masking=True,
+                    template_labels=None,
+                    template_roi=None,
+                    add_2d_masking=False,
                     do_histogram_intensity_warping=True,
                     do_simulate_bias_field=True,
                     do_add_noise=True,
                     do_data_augmentation=True):
 
 
-    def create_random_mask(domain_image,
-                           max_number_of_points=100,
-                           max_mesh_size=10):
+    def create_random_mask_3d(domain_image,
+                              max_number_of_points=100,
+                              max_mesh_size=10):
         number_of_points = random.randint(10, max_number_of_points)
         mesh_size = random.randint(5, max_mesh_size)
         log_field = antspynet.simulate_bias_field(domain_image,
@@ -63,6 +65,48 @@ def batch_generator(batch_size=32,
 
         mask = image * -1.0 + 1
         return mask
+
+    def create_random_mask2_3d(template,
+                               template_labels,
+                               roi=None):
+
+        labels_image = template_labels
+        labels_array = labels_image.numpy()
+
+        unique_labels = labels_image.unique().astype(int)[1:]
+        random_labels = random.sample(list(unique_labels), random.randint(2,4))
+        random_labels_array = np.zeros_like(labels_array)
+        for i in range(len(random_labels)):
+            random_labels_array[labels_array == random_labels[i]] = 1
+
+        random_image = ants.from_numpy(random_labels_array, origin=labels_image.origin,
+            spacing=labels_image.spacing, direction=labels_image.direction)
+
+        data_augmentation = antspynet.randomly_transform_image_data(template,
+            [[template]],
+            [random_image],
+            number_of_simulations=1,
+            transform_type='affineAndDeformation',
+            sd_affine=0.1,
+            deformation_transform_type="bspline",
+            number_of_random_points=1000,
+            sd_noise=10.0,
+            number_of_fitting_levels=2,
+            mesh_size=5,
+            sd_smoothing=4.0,
+            input_image_interpolator='linear',
+            segmentation_image_interpolator='nearestNeighbor')
+
+        mask = data_augmentation['simulated_segmentation_images'][0]
+        if roi is not None:
+            mask = mask * roi
+        mask = mask * -1.0 + 1
+        
+        return mask    
+
+
+
+
 
     verbose = False
 
@@ -132,7 +176,6 @@ def batch_generator(batch_size=32,
                     break_points=break_points, clamp_end_points=(True, False),
                     displacements=displacements)
 
-
             if do_add_noise and random.sample((True, False), 1)[0]:
                 if verbose:
                     print("    Add noise.")
@@ -155,7 +198,8 @@ def batch_generator(batch_size=32,
             t1[t1 < quantiles[0]] = quantiles[0]
             t1[t1 > quantiles[1]] = quantiles[1]
 
-            mask = create_random_mask(t1)
+            mask = create_random_mask_3d(t1) * template_roi
+            # mask = create_random_mask2_3d(template, template_labels, template_roi)
 
             slice_numbers = random.sample(list(range(template_lower, template_upper)), slices_per_subject)
             for i in range(len(slice_numbers)):
@@ -166,6 +210,9 @@ def batch_generator(batch_size=32,
                 mask_slice = ants.slice_image(mask, axis=1, idx=slice_numbers[i], collapse_strategy=1)
                 if add_2d_masking:
                     mask_slice = create_random_mask_2d(mask_slice) * mask_slice
+                    if template_roi is not None:
+                        template_roi_slice = ants.slice_image(template_roi, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                        mask_slice = mask_slice * template_roi_slice
                 mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
                 mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
                 mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)

@@ -37,6 +37,8 @@ base_directory = '/home/ntustison/Data/CorticalThicknessData2014/'
 scripts_directory = base_directory + 'Training/'
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
+template_labels = ants.image_read(scripts_directory + "dktWithWhiteMatterLobes.nii.gz")
+template_roi = ants.image_read(scripts_directory + "brainMaskDilated.nii.gz")
 
 ################################################
 #
@@ -232,6 +234,9 @@ generator = batch_generator(batch_size=batch_size,
                             t1s=t1_images,
                             image_size=(image_size[0], image_size[1]),
                             template=template,
+                            template_labels=template_labels,
+                            template_roi=template_roi,
+                            add_2d_masking=True, 
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,
                             do_add_noise=False,
