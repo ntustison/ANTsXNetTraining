@@ -101,8 +101,8 @@ def batch_generator(batch_size=32,
         if roi is not None:
             mask = mask * roi
         mask = mask * -1.0 + 1
-        
-        return mask    
+
+        return mask
 
 
 
@@ -198,7 +198,10 @@ def batch_generator(batch_size=32,
             t1[t1 < quantiles[0]] = quantiles[0]
             t1[t1 > quantiles[1]] = quantiles[1]
 
-            mask = create_random_mask_3d(t1) * template_roi
+            mask = create_random_mask_3d(t1)
+            mask_inverted = (mask * -1.0 + 1.0) * template_roi
+            mask = mask_inverted * -1.0 + 1.0
+
             # mask = create_random_mask2_3d(template, template_labels, template_roi)
 
             slice_numbers = random.sample(list(range(template_lower, template_upper)), slices_per_subject)
@@ -212,7 +215,7 @@ def batch_generator(batch_size=32,
                     mask_slice = create_random_mask_2d(mask_slice) * mask_slice
                     if template_roi is not None:
                         template_roi_slice = ants.slice_image(template_roi, axis=1, idx=slice_numbers[i], collapse_strategy=1)
-                        mask_slice = mask_slice * template_roi_slice
+                        mask_slice = ((mask_slice * -1.0 + 1.0) * template_roi_slice) * -1.0 + 1.0
                 mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
                 mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
                 mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
