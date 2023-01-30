@@ -7,6 +7,7 @@ def batch_generator(batch_size=32,
                     t1s=None,
                     t1_ages=None,
                     image_size=None,
+                    number_of_channels=1,
                     template=None,
                     do_histogram_intensity_warping=True,
                     do_simulate_bias_field=True,
@@ -14,8 +15,6 @@ def batch_generator(batch_size=32,
                     do_data_augmentation=True):
 
     verbose = False
-
-    number_of_channels = 3
 
     template_lower = 58 + 10
     template_upper = 188 - 10
@@ -33,9 +32,6 @@ def batch_generator(batch_size=32,
             if verbose:
                 print("Batch count: " + str(batch_count))
 
-            if verbose:
-                print("    Augment input T1")
-
             # Augment the input T1
 
             which_t1 = random.sample(list(range(len(t1s))), 1)[0]
@@ -50,6 +46,9 @@ def batch_generator(batch_size=32,
             t1 = xfrm.apply_to_image(t1, template)
 
             if do_data_augmentation == True:
+                if verbose:
+                    print("    Augment input T1")
+
                 data_augmentation = antspynet.randomly_transform_image_data(template,
                     [[t1]],
                     [brain_mask],
@@ -67,10 +66,9 @@ def batch_generator(batch_size=32,
                 t1 = data_augmentation['simulated_images'][0][0]
                 brain_mask = data_augmentation['simulated_segmentation_images'][0]
 
-            if verbose:
-                print("    Histogram intensity warping.")
-
             if do_histogram_intensity_warping and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Histogram intensity warping.")
                 break_points = [0.2, 0.4, 0.6, 0.8]
                 displacements = list()
                 for b in range(len(break_points)):
@@ -81,18 +79,18 @@ def batch_generator(batch_size=32,
                     break_points=break_points, clamp_end_points=(True, False),
                     displacements=displacements)
 
-            if verbose:
-                print("    Add noise.")
-
             if do_add_noise and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Add noise.")
+
                 t1 = (t1 - t1.min()) / (t1.max() - t1.min())
                 noise_parameters = (0.0, random.uniform(0, 0.05))
                 t1 = ants.add_noise_to_image(t1, noise_model="additivegaussian", noise_parameters=noise_parameters)
 
-            if verbose:
-                print("    Simulate bias field.")
-
             if do_simulate_bias_field and random.sample((True, False), 1)[0]:
+                if verbose:
+                    print("    Simulate bias field.")
+
                 log_field = antspynet.simulate_bias_field(t1, number_of_points=10, sd_bias_field=1.0,
                              number_of_fitting_levels=2, mesh_size=10)
                 log_field = log_field.iMath("Normalize")
@@ -109,11 +107,10 @@ def batch_generator(batch_size=32,
             for i in range(len(slice_numbers)):
                 slice = ants.slice_image(t1, axis=1, idx=slice_numbers[i], collapse_strategy=1)
                 slice = antspynet.pad_or_crop_image_to_size(slice, image_size)
-                slice = (slice - slice.mean()) / slice.std()
+                slice = (slice - slice.min()) / (slice.max() - slice.min())
 
-                X[batch_count,:,:,0] = slice.numpy()
-                X[batch_count,:,:,1] = slice.numpy()
-                X[batch_count,:,:,2] = slice.numpy()
+                for j in range(number_of_channels):
+                    X[batch_count,:,:,j] = slice.numpy()
                 Y[batch_count] = t1_ages[which_t1]
 
                 batch_count = batch_count + 1

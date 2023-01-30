@@ -2,7 +2,7 @@ import ants
 import antspynet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import glob
 import pandas as pd
 import numpy as np
@@ -31,7 +31,7 @@ template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 #
 ################################################
 
-image_modalities = ["FLAIR", "FLAIR", "FLAIR"]
+image_modalities = ["FLAIR"]
 channel_size = len(image_modalities)
 template_size = template.shape
 
@@ -51,7 +51,7 @@ vgg16_model = antspynet.create_vgg_model_2d((224, 224, channel_size),
 vgg16_model.compile(optimizer=keras.optimizers.Adam(learning_rate=2e-4),
                    loss="mse")
 
-weights_filename = scripts_directory + "/vgg16_imagenet_flairbrain_weights.h5"
+weights_filename = scripts_directory + "/vgg16_imagenet_single_channel_flairbrain_weights.h5"
 if os.path.exists(weights_filename):
     vgg16_model.load_weights(weights_filename)
 else:
@@ -62,9 +62,8 @@ else:
                                        pooling=None,
                                        classes=1000,
                                        classifier_activation='softmax')
-    for i in range(len(vgg16_keras.layers)-1):
+    for i in range(2, len(vgg16_keras.layers)-1):
         vgg16_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
-
 
 ################################################
 #
@@ -122,7 +121,7 @@ generator = batch_generator(batch_size=batch_size,
                             image_size=image_size,
                             number_of_channels=channel_size,
                             template=template,
-                            do_histogram_intensity_warping=False,
+                            do_histogram_intensity_warping=True,
                             do_simulate_bias_field=False,
                             do_add_noise=False,
                             do_data_augmentation=False

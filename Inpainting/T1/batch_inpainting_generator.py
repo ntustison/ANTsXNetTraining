@@ -8,6 +8,7 @@ import cv2
 def batch_generator(batch_size=32,
                     t1s=None,
                     image_size=None,
+                    number_of_channels=1,
                     template=None,
                     template_labels=None,
                     template_roi=None,
@@ -105,12 +106,7 @@ def batch_generator(batch_size=32,
         return mask
 
 
-
-
-
     verbose = False
-
-    number_of_channels = 3
 
     template_lower = 58 + 10
     template_upper = 188 - 10
@@ -223,17 +219,10 @@ def batch_generator(batch_size=32,
                 slice_masked = slice * mask_slice
                 slice_masked[mask_slice == 0] = 1
 
-                X[batch_count,:,:,0] = slice_masked.numpy()
-                X[batch_count,:,:,1] = slice_masked.numpy()
-                X[batch_count,:,:,2] = slice_masked.numpy()
-
-                XMask[batch_count,:,:,0] = mask_slice.numpy()
-                XMask[batch_count,:,:,1] = mask_slice.numpy()
-                XMask[batch_count,:,:,2] = mask_slice.numpy()
-
-                Y[batch_count,:,:,0] = slice.numpy()
-                Y[batch_count,:,:,1] = slice.numpy()
-                Y[batch_count,:,:,2] = slice.numpy()
+                for j in range(number_of_channels):
+                    X[batch_count,:,:,j] = slice_masked.numpy()
+                    XMask[batch_count,:,:,j] = mask_slice.numpy()
+                    Y[batch_count,:,:,j] = slice.numpy()
 
                 batch_count = batch_count + 1
                 if batch_count >= batch_size:

@@ -32,7 +32,7 @@ template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 ################################################
 
 image_modalities = ["T1", "T1", "T1"]
-channel_size = 3
+channel_size = len(image_modalities)
 template_size = template.shape
 
 image_size=(224, 224)
@@ -64,7 +64,7 @@ else:
                                        classifier_activation='softmax')
     for i in range(len(vgg16_keras.layers)-1):
         vgg16_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
-    
+
 
 ################################################
 #
@@ -104,10 +104,10 @@ demo = pd.read_csv("/home/ntustison/Data/SRPB1600/participants_diagscore/partici
 for i in range(len(t1_files)):
     print(t1_files[i])
     subject_directory = os.path.dirname(t1_files[i])
-    subject_id = subject_directory.split('/')[6]    
+    subject_id = subject_directory.split('/')[6]
     subject_row = demo.loc[demo['participants_id'] == subject_id]
     if not subject_row.empty:
-        value = subject_row['age'].iloc[0]  
+        value = subject_row['age'].iloc[0]
         if np.isfinite(value):
             t1_images.append(t1_files[i])
             t1_ages.append(int(value))
@@ -129,6 +129,7 @@ generator = batch_generator(batch_size=batch_size,
                             t1s=t1_images,
                             t1_ages=t1_ages,
                             image_size=image_size,
+                            number_of_channels=channel_size,
                             template=template,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,

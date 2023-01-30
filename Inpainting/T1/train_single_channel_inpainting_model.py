@@ -33,8 +33,8 @@ tf.data.experimental.enable_debug_mode()
 # from tensorflow.python.framework.ops import disable_eager_execution
 # disable_eager_execution()
 
-base_directory = '/home/ntustison/Data/CorticalThicknessData2014/'
-scripts_directory = base_directory + 'Training/'
+base_directory = '/home/ntustison/Data/Inpainting/'
+scripts_directory = base_directory + 'T1/'
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 template_labels = ants.image_read(scripts_directory + "dktWithWhiteMatterLobes.nii.gz")
@@ -58,7 +58,7 @@ template_roi = ants.image_read(scripts_directory + "brainMaskDilated.nii.gz")
 # vgg16_model.trainable = False
 # vgg16_model.compile(loss='mse', optimizer='adam')
 
-image_modalities = ["T1", "T1", "T1"]
+image_modalities = ["T1"]
 number_of_channels = len(image_modalities)
 template_size = template.shape
 
@@ -75,24 +75,16 @@ vgg16_top_model = antspynet.create_vgg_model_2d((224, 224, number_of_channels),
                                              mode='regression')
 
 vgg16_topless_model = Model(inputs=vgg16_top_model.inputs, outputs=vgg16_top_model.layers[18].output)
-vgg16_topless_model.layers[0]._batch_input_shape = (None, None, None, number_of_channels)
+vgg16_topless_model.layers[0]._batch_input_shape = (None, None, None, 1)
 vgg16_topless_model = keras.models.model_from_json(vgg16_topless_model.to_json())
 
-vgg_weights_filename = scripts_directory + "vgg16_imagenet_t1brain_weights.h5"
+vgg_weights_filename = scripts_directory + "vgg16_imagenet_single_channel_t1brain_weights.h5"
 if os.path.exists(vgg_weights_filename):
     vgg16_top_model.load_weights(vgg_weights_filename)
     for i in range(len(vgg16_topless_model.layers)):
         vgg16_topless_model.layers[i].set_weights(vgg16_top_model.layers[i].get_weights())
 else:
-    vgg16_keras = keras.applications.VGG16(include_top=False,
-                                       weights='imagenet',
-                                       input_tensor=None,
-                                       input_shape=None,
-                                       pooling=None,
-                                       classes=1000,
-                                       classifier_activation='softmax')
-    for i in range(len(vgg16_keras.layers)):
-        vgg16_topless_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
+    raise ValueError("Weights file does not exist.")
 
 max_pool_layers = [3, 6, 10]
 vgg16_topless_model.outputs = [vgg16_topless_model.layers[i].output for i in max_pool_layers]
@@ -119,7 +111,7 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 ################################################
 
 inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 batch_normalization_training=False)
+                                                                                 batch_normalization_training=True)
 
 def loss_total(x_mask):
 
@@ -214,7 +206,7 @@ def loss_total(x_mask):
 
 print("Loading brain data.")
 
-t1_images = (*glob.glob(base_directory + "*/T1/*.nii.gz"),
+t1_images = (*glob.glob("/home/ntustison/Data/CorticalThicknessData2014/*/T1/*.nii.gz"),
              *glob.glob("/home/ntustison/Data/SRPB1600/data/sub-*/t1/defaced_mprage.nii.gz"))
 
 if len(t1_images) == 0:
@@ -229,7 +221,6 @@ print( "Training")
 #
 
 batch_size = 16
-image_size = (256, 256, number_of_channels)
 
 generator = batch_generator(batch_size=batch_size,
                             t1s=t1_images,
