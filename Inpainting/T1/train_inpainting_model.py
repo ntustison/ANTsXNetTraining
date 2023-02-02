@@ -234,7 +234,6 @@ image_size = (256, 256, number_of_channels)
 generator = batch_generator(batch_size=batch_size,
                             t1s=t1_images,
                             image_size=(image_size[0], image_size[1]),
-                            number_of_channels=number_of_channels,
                             template=template,
                             template_labels=template_labels,
                             template_roi=template_roi,

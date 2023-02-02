@@ -20,8 +20,8 @@ if len(gpus) > 0:
 
 tf.compat.v1.disable_eager_execution()
 
-base_directory = '/home/ntustison/Data/CorticalThicknessData2014/'
-scripts_directory = base_directory + 'Training/'
+base_directory = '/home/ntustison/Data/Inpainting/FLAIR'
+scripts_directory = base_directory
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 
@@ -31,8 +31,8 @@ template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 #
 ################################################
 
-image_modalities = ["T1", "T1", "T1"]
-channel_size = len(image_modalities)
+image_modalities = ["FLAIR", "FLAIR", "FLAIR"]
+channel_size = 3
 template_size = template.shape
 
 image_size=(224, 224)
@@ -51,7 +51,7 @@ vgg16_model = antspynet.create_vgg_model_2d((224, 224, 3),
 vgg16_model.compile(optimizer=keras.optimizers.Adam(learning_rate=2e-4),
                    loss="mse")
 
-weights_filename = scripts_directory + "vgg16_imagenet_t1brain_weights.h5"
+weights_filename = scripts_directory + "/vgg16_imagenet_flairbrain_weights.h5"
 if os.path.exists(weights_filename):
     vgg16_model.load_weights(weights_filename)
 else:
@@ -64,7 +64,7 @@ else:
                                        classifier_activation='softmax')
     for i in range(len(vgg16_keras.layers)-1):
         vgg16_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
-
+    
 
 ################################################
 #
@@ -74,47 +74,38 @@ else:
 
 print("Loading brain data.")
 
-t1_files = glob.glob(base_directory + "*/T1/*.nii.gz")
+# Load open neuro data
 
-t1_images = list()
-t1_ages = list()
+flair_files = glob.glob("/home/ntustison/Data/OpenNeuro/Nifti/sub*/ses*/anat/*FLAIR.nii.gz")
+demo = pd.read_csv("/home/ntustison/Data/OpenNeuro/Nifti/participants_ageonly.csv")
 
-for i in range(len(t1_files)):
-    csv_file = t1_files[i].replace(".nii.gz", ".csv")
-    if os.path.exists(csv_file):
-        try:
-            print(csv_file)
-            t1_pd = pd.read_csv(csv_file)
-            if t1_pd.shape[0] > 0:
-                if 'Age' in t1_pd:
-                    value = t1_pd['Age'].iloc[0]
-                if 'AGE' in t1_pd:
-                    value = t1_pd['AGE'].iloc[0]
-                if np.isfinite(value):
-                    t1_images.append(t1_files[i])
-                    t1_ages.append(int(value))
-        except TypeError:
-            pass
+flair_images = list()
+flair_ages = list()
 
-# Also load the SRPB data
+for i in range(len(flair_files)):
+    subject_id = flair_files[i].split('/')[6]   
+    subject_row = demo[demo['participant_id'] == subject_id]
+    if subject_row.shape[0] == 1:
+        flair_images.append(flair_files[i])
+        flair_ages.append(int(subject_row['age']))
 
-t1_files = glob.glob("/home/ntustison/Data/SRPB1600/data/sub-*/t1/defaced_mprage.nii.gz")
-demo = pd.read_csv("/home/ntustison/Data/SRPB1600/participants_diagscore/participants_decnef-Table 1.csv")
+# Load Kirby data
 
-for i in range(len(t1_files)):
-    print(t1_files[i])
-    subject_directory = os.path.dirname(t1_files[i])
-    subject_id = subject_directory.split('/')[6]
-    subject_row = demo.loc[demo['participants_id'] == subject_id]
-    if not subject_row.empty:
-        value = subject_row['age'].iloc[0]
-        if np.isfinite(value):
-            t1_images.append(t1_files[i])
-            t1_ages.append(int(value))
+flair_files = glob.glob("/home/ntustison/Data/Kirby/Images/*FLAIR*.nii.gz")
+demo = pd.read_csv("/home/ntustison/Data/Kirby/kirby.csv")
 
-if len(t1_images) == 0:
+for i in range(len(flair_files)):
+    subject_id = os.path.basename(flair_files[i])
+    subject_id = subject_id.split('-FLAIR')[0]
+    subject_row = demo[demo['Subject'] == subject_id]
+    if subject_row.shape[0] == 1:
+        flair_images.append(flair_files[i])
+        flair_ages.append(int(subject_row['Age']))
+
+
+if len(flair_images) == 0:
     raise ValueError("NO training data.")
-print("Total training image files: ", len(t1_images))
+print("Total training image files: ", len(flair_images))
 
 print( "Training")
 
@@ -126,10 +117,9 @@ print( "Training")
 batch_size = 32
 
 generator = batch_generator(batch_size=batch_size,
-                            t1s=t1_images,
-                            t1_ages=t1_ages,
+                            t1s=flair_images,
+                            t1_ages=flair_ages,
                             image_size=image_size,
-                            number_of_channels=channel_size,
                             template=template,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,

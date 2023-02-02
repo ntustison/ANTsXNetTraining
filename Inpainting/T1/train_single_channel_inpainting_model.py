@@ -13,7 +13,7 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Lambda
+from tensorflow.keras.layers import Input, Lambda, Concatenate
 
 from batch_inpainting_generator import batch_generator
 
@@ -34,11 +34,12 @@ tf.data.experimental.enable_debug_mode()
 # disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/Inpainting/'
+template_directory = base_directory + 'Oasis/'
 scripts_directory = base_directory + 'T1/'
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
-template_labels = ants.image_read(scripts_directory + "dktWithWhiteMatterLobes.nii.gz")
-template_roi = ants.image_read(scripts_directory + "brainMaskDilated.nii.gz")
+template_labels = ants.image_read(template_directory + "dktWithWhiteMatterLobes.nii.gz")
+template_roi = ants.image_read(template_directory + "brainMaskDilated.nii.gz")
 
 ################################################
 #
@@ -111,7 +112,9 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 ################################################
 
 inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 batch_normalization_training=True)
+                                                                                 batch_normalization_training=True,
+                                                                                 number_of_filters=(32, 64, 128, 256, 256, 256, 256, 256),
+                                                                                 kernel_size=3)
 
 def loss_total(x_mask):
 

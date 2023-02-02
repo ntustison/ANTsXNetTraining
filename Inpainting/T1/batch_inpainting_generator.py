@@ -12,6 +12,7 @@ def batch_generator(batch_size=32,
                     template=None,
                     template_labels=None,
                     template_roi=None,
+                    template_priors=None,
                     add_2d_masking=False,
                     do_histogram_intensity_warping=True,
                     do_simulate_bias_field=True,
@@ -115,8 +116,12 @@ def batch_generator(batch_size=32,
     while True:
 
         X = np.zeros((batch_size, *image_size, number_of_channels))
-        XMask = np.zeros((batch_size, *image_size, number_of_channels))
+        XMask = np.ones((batch_size, *image_size, number_of_channels))
         Y = np.zeros((batch_size, *image_size, number_of_channels))
+
+        if template_priors is not None:
+            X = np.zeros((batch_size, *image_size, number_of_channels + len(template_priors)))
+            XMask = np.ones((batch_size, *image_size, number_of_channels + len(template_priors)))
 
         batch_count = 0
 
@@ -206,6 +211,10 @@ def batch_generator(batch_size=32,
                 slice = antspynet.pad_or_crop_image_to_size(slice, image_size)
                 slice = (slice - slice.min()) / (slice.max() - slice.min())
 
+                template_slice = ants.slice_image(template, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                template_slice = antspynet.pad_or_crop_image_to_size(template_slice, image_size)
+                template_slice = (template_slice - template_slice.min()) / (template_slice.max() - template_slice.min())
+
                 mask_slice = ants.slice_image(mask, axis=1, idx=slice_numbers[i], collapse_strategy=1)
                 if add_2d_masking:
                     mask_slice = create_random_mask_2d(mask_slice) * mask_slice
@@ -215,14 +224,20 @@ def batch_generator(batch_size=32,
                 mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
                 mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
                 mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
-
                 slice_masked = slice * mask_slice
-                slice_masked[mask_slice == 0] = 1
+                slice_masked[mask_slice == 0] = template_slice[mask_slice == 0]
 
                 for j in range(number_of_channels):
                     X[batch_count,:,:,j] = slice_masked.numpy()
                     XMask[batch_count,:,:,j] = mask_slice.numpy()
                     Y[batch_count,:,:,j] = slice.numpy()
+
+                if template_priors is not None:
+                    for j in range(len(template_priors)):
+                        template_prior_slice = ants.slice_image(template_priors[j], axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                        template_prior_slice = antspynet.pad_or_crop_image_to_size(template_prior_slice, image_size)
+                        X[batch_count,:,:,number_of_channels + j] = template_prior_slice.numpy()
+
 
                 batch_count = batch_count + 1
                 if batch_count >= batch_size:
@@ -232,3 +247,4 @@ def batch_generator(batch_size=32,
                 break
 
         yield [X, XMask], Y
+
