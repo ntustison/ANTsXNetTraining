@@ -2,7 +2,7 @@ import ants
 import antspynet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import glob
 import pandas as pd
 import numpy as np
@@ -34,12 +34,15 @@ tf.data.experimental.enable_debug_mode()
 # disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/Inpainting/'
-template_directory = base_directory + 'Oasis/'
 scripts_directory = base_directory + 'T1/'
+template_directory = base_directory + "Oasis/"
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 template_labels = ants.image_read(template_directory + "dktWithWhiteMatterLobes.nii.gz")
 template_roi = ants.image_read(template_directory + "brainMaskDilated.nii.gz")
+template_priors = list()
+for i in range(6):
+    template_priors.append(ants.image_read(template_directory + "priors" + str(i+1) + ".nii.gz"))
 
 ################################################
 #
@@ -111,12 +114,13 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 #
 ################################################
 
+image_size = (256, 256, number_of_channels)
+print("Unet model with " + str(len(template_priors)) + " priors.")
 inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
                                                                                  batch_normalization_training=True,
-                                                                                 number_of_priors=len
+                                                                                 number_of_priors=len(template_priors),
                                                                                  number_of_filters=(32, 64, 128, 256, 256, 256, 256, 256),
                                                                                  kernel_size=3)
-
 def loss_total(x_mask):
 
     def l1_norm(y_true, y_pred):
@@ -233,6 +237,7 @@ generator = batch_generator(batch_size=batch_size,
                             template=template,
                             template_labels=template_labels,
                             template_roi=template_roi,
+                            template_priors=template_priors,
                             add_2d_masking=True,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,
@@ -240,7 +245,7 @@ generator = batch_generator(batch_size=batch_size,
                             do_data_augmentation=False
                             )
 
-inpainting_weights_filename = scripts_directory + "t1_inpainting_weights.h5"
+inpainting_weights_filename = scripts_directory + "t1_inpainting_with_priors_weights.h5"
 if os.path.exists(inpainting_weights_filename):
     inpainting_unet.load_weights(inpainting_weights_filename)
 
@@ -261,8 +266,7 @@ for epoch in range(number_of_epochs):
     start_time = time.time()
     for step in range(steps_per_epoch):
         x_batch_train, y_batch_train = next(generator)
-
-        loss_fn=loss_total(x_batch_train[1])
+        loss_fn=loss_total(x_batch_train[1][:,:,:,[0]])
 
         with tf.GradientTape() as tape:
             logits = inpainting_unet(x_batch_train, training=True)

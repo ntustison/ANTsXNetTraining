@@ -119,9 +119,9 @@ def batch_generator(batch_size=32,
         XMask = np.ones((batch_size, *image_size, number_of_channels))
         Y = np.zeros((batch_size, *image_size, number_of_channels))
 
+        XPriors = None
         if template_priors is not None:
-            X = np.zeros((batch_size, *image_size, number_of_channels + len(template_priors)))
-            XMask = np.ones((batch_size, *image_size, number_of_channels + len(template_priors)))
+            XPriors = np.zeros((batch_size, *image_size, len(template_priors)))
 
         batch_count = 0
 
@@ -236,7 +236,7 @@ def batch_generator(batch_size=32,
                     for j in range(len(template_priors)):
                         template_prior_slice = ants.slice_image(template_priors[j], axis=1, idx=slice_numbers[i], collapse_strategy=1)
                         template_prior_slice = antspynet.pad_or_crop_image_to_size(template_prior_slice, image_size)
-                        X[batch_count,:,:,number_of_channels + j] = template_prior_slice.numpy()
+                        XPriors[batch_count,:,:,j] = template_prior_slice.numpy()
 
 
                 batch_count = batch_count + 1
@@ -246,5 +246,8 @@ def batch_generator(batch_size=32,
             if batch_count >= batch_size:
                 break
 
-        yield [X, XMask], Y
+        if len(template_priors) > 0:
+            yield [X, XMask, XPriors], Y
+        else:
+            yield [X, XMask], Y
 
