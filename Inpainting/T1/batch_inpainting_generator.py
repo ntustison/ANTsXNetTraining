@@ -246,7 +246,7 @@ def batch_generator(batch_size=32,
             if batch_count >= batch_size:
                 break
 
-        if len(template_priors) > 0:
+        if template_priors is not None:
             yield [X, XMask, XPriors], Y
         else:
             yield [X, XMask], Y

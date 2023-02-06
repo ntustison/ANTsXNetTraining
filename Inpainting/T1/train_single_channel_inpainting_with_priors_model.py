@@ -117,10 +117,10 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 image_size = (256, 256, number_of_channels)
 print("Unet model with " + str(len(template_priors)) + " priors.")
 inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 batch_normalization_training=True,
                                                                                  number_of_priors=len(template_priors),
-                                                                                 number_of_filters=(32, 64, 128, 256, 256, 256, 256, 256),
+                                                                                 number_of_filters=(32, 64, 128, 256, 512),
                                                                                  kernel_size=3)
+
 def loss_total(x_mask):
 
     def l1_norm(y_true, y_pred):
@@ -200,8 +200,16 @@ def loss_total(x_mask):
         l5 = K.cast(loss_style(vgg_comp, vgg_gt), 'float32')
         l6 = K.cast(loss_tv(x_mask, y_comp), 'float32')
 
+        # print("l1 = ", tf.math.reduce_mean(l1))
+        # print("l2 = ", tf.math.reduce_mean(l2))
+        # print("l3 = ", tf.math.reduce_mean(l3))  
+        # print("l4 = ", tf.math.reduce_mean(l4))
+        # print("l5 = ", tf.math.reduce_mean(l5))        
+        # print("l6 = ", tf.math.reduce_mean(l6))
+
         # Return loss function
         lsum = tf.math.reduce_mean(l1 + 6*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6)
+        # lsum = tf.math.reduce_mean(l1 + 100*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6)
         return lsum
 
     return loss
