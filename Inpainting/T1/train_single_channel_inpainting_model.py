@@ -111,10 +111,10 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 #
 ################################################
 
-inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 number_of_priors=0,
-                                                                                 number_of_filters=(32, 64, 128, 256, 512),
-                                                                                 kernel_size=3)
+inpainting_unet = antspynet.create_partial_convolution_unet_model_2d(image_size,
+                                                                     number_of_priors=0,
+                                                                     number_of_filters=(32, 64, 128, 128, 256, 256),
+                                                                     kernel_size=3)
 
 inpainting_unet.summary()
 
