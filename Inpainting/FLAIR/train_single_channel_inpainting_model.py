@@ -2,7 +2,7 @@ import ants
 import antspynet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import glob
 import pandas as pd
 import numpy as np
@@ -13,7 +13,7 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Lambda
+from tensorflow.keras.layers import Input, Lambda, Concatenate
 
 from batch_inpainting_generator import batch_generator
 
@@ -33,10 +33,13 @@ tf.data.experimental.enable_debug_mode()
 # from tensorflow.python.framework.ops import disable_eager_execution
 # disable_eager_execution()
 
-base_directory = '/home/ntustison/Data/CorticalThicknessData2014/'
-scripts_directory = base_directory + 'Training/'
+base_directory = '/home/ntustison/Data/Inpainting/'
+template_directory = base_directory + 'Oasis/'
+scripts_directory = base_directory + 'FLAIR/'
 
 template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
+template_labels = ants.image_read(template_directory + "dktWithWhiteMatterLobes.nii.gz")
+template_roi = ants.image_read(template_directory + "brainMaskDilated.nii.gz")
 
 ################################################
 #
@@ -56,10 +59,11 @@ template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 # vgg16_model.trainable = False
 # vgg16_model.compile(loss='mse', optimizer='adam')
 
-image_modalities = ["T1", "T1", "T1"]
+image_modalities = ["FLAIR"]
+number_of_channels = len(image_modalities)
 template_size = template.shape
 
-vgg16_top_model = antspynet.create_vgg_model_2d((224, 224, 3),
+vgg16_top_model = antspynet.create_vgg_model_2d((224, 224, number_of_channels),
                                              number_of_classification_labels=1,
                                              layers=(1, 2, 3, 4, 4),
                                              lowest_resolution=64,
@@ -72,31 +76,23 @@ vgg16_top_model = antspynet.create_vgg_model_2d((224, 224, 3),
                                              mode='regression')
 
 vgg16_topless_model = Model(inputs=vgg16_top_model.inputs, outputs=vgg16_top_model.layers[18].output)
-vgg16_topless_model.layers[0]._batch_input_shape = (None, None, None, 3)
+vgg16_topless_model.layers[0]._batch_input_shape = (None, None, None, 1)
 vgg16_topless_model = keras.models.model_from_json(vgg16_topless_model.to_json())
 
-vgg_weights_filename = scripts_directory + "vgg16_imagenet_t1brain_weights.h5"
+vgg_weights_filename = scripts_directory + "vgg16_imagenet_single_channel_flairbrain_weights.h5"
 if os.path.exists(vgg_weights_filename):
     vgg16_top_model.load_weights(vgg_weights_filename)
     for i in range(len(vgg16_topless_model.layers)):
         vgg16_topless_model.layers[i].set_weights(vgg16_top_model.layers[i].get_weights())
 else:
-    vgg16_keras = keras.applications.VGG16(include_top=False,
-                                       weights='imagenet',
-                                       input_tensor=None,
-                                       input_shape=None,
-                                       pooling=None,
-                                       classes=1000,
-                                       classifier_activation='softmax')
-    for i in range(len(vgg16_keras.layers)):
-        vgg16_topless_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
+    raise ValueError("Weights file does not exist.")
 
 max_pool_layers = [3, 6, 10]
 vgg16_topless_model.outputs = [vgg16_topless_model.layers[i].output for i in max_pool_layers]
 vgg16_topless_model = Model(inputs=vgg16_topless_model.inputs, outputs=vgg16_topless_model.outputs)
 # vgg16_topless_model = keras.models.model_from_json(vgg16_topless_model.to_json())
 
-image_size = (256, 256, 3)
+image_size = (256, 256, number_of_channels)
 vgg_input_image = Input(shape=image_size)
 
 # Scaling for VGG input
@@ -115,18 +111,15 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 #
 ################################################
 
-inpainting_unet, input_mask = antspynet.create_partial_convolution_unet_model_2d(image_size,
-                                                                                 batch_normalization_training=True)
+inpainting_unet = antspynet.create_partial_convolution_unet_model_2d(image_size,
+                                                                     number_of_priors=0,
+                                                                     number_of_filters=(32, 64, 128, 256, 512, 512),
+                                                                     kernel_size=3,
+                                                                     use_partial_conv=True)
+
+inpainting_unet.summary()
 
 def loss_total(x_mask):
-
-    # def l1_norm(y_true, y_pred):
-    #     if len(y_true.shape) == 4:
-    #         return tf.math.reduce_mean(K.abs(y_pred - y_true))
-    #     elif len(y_true.shape) == 3:
-    #         return tf.math.reduce_mean(K.abs(y_pred - y_true))
-    #     else:
-    #         raise NotImplementedError("Calculating L1 loss on 1D tensors? should not occur for this network")
 
     def l1_norm(y_true, y_pred):
         if len(y_true.shape) == 4:
@@ -207,6 +200,13 @@ def loss_total(x_mask):
 
         # Return loss function
         lsum = tf.math.reduce_mean(l1 + 6*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6)
+        print(tf.math.reduce_mean(l1))
+        print(tf.math.reduce_mean(l2))
+        print(tf.math.reduce_mean(l3))
+        print(tf.math.reduce_mean(l4))
+        print(tf.math.reduce_mean(l5))
+        print(tf.math.reduce_mean(l6))
+        # lsum = tf.math.reduce_mean(l1)
         return lsum
 
     return loss
@@ -219,12 +219,14 @@ def loss_total(x_mask):
 
 print("Loading brain data.")
 
-t1_images = (*glob.glob(base_directory + "*/T1/*.nii.gz"),
-             *glob.glob("/home/ntustison/Data/SRPB1600/data/sub-*/t1/defaced_mprage.nii.gz"))
+# Load open neuro data
 
-if len(t1_images) == 0:
+flair_images = (*glob.glob("/home/ntustison/Data/OpenNeuro/Nifti/sub*/ses*/anat/*FLAIR.nii.gz"),
+                *glob.glob("/home/ntustison/Data/Kirby/Images/*FLAIR*.nii.gz"))
+
+if len(flair_images) == 0:
     raise ValueError("NO training data.")
-print("Total training image files: " + str(len(t1_images)))
+print("Total training image files: ", len(flair_images))
 
 print( "Training")
 
@@ -234,19 +236,23 @@ print( "Training")
 #
 
 batch_size = 16
-image_size = (256, 256, 3)
 
 generator = batch_generator(batch_size=batch_size,
-                            t1s=t1_images,
+                            t1s=flair_images,
                             image_size=(image_size[0], image_size[1]),
+                            number_of_channels=number_of_channels,
                             template=template,
+                            template_labels=template_labels,
+                            template_roi=template_roi,
+                            add_2d_masking=True,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,
                             do_add_noise=False,
-                            do_data_augmentation=False
+                            do_data_augmentation=False,
+                            return_ones_masks=False
                             )
 
-inpainting_weights_filename = scripts_directory + "t1_inpainting_weights.h5"
+inpainting_weights_filename = scripts_directory + "flair_inpainting_weights.h5"
 if os.path.exists(inpainting_weights_filename):
     inpainting_unet.load_weights(inpainting_weights_filename)
 

@@ -113,7 +113,7 @@ vgg16_model.compile(loss='mse', optimizer='adam')
 
 inpainting_unet = antspynet.create_partial_convolution_unet_model_2d(image_size,
                                                                      number_of_priors=0,
-                                                                     number_of_filters=(32, 64, 128, 128, 256, 256),
+                                                                     number_of_filters=(32, 64, 128, 256, 512, 512),
                                                                      kernel_size=3)
 
 inpainting_unet.summary()
@@ -199,6 +199,14 @@ def loss_total(x_mask):
 
         # Return loss function
         lsum = tf.math.reduce_mean(l1 + 6*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6)
+        # lsum = tf.math.reduce_mean(l1 + 4*l2 + 0.05*l3 + 100*(l4+l5) + 0.5*l6)
+        # lsum = tf.math.reduce_mean(l1)
+        print(tf.math.reduce_mean(l1))
+        print(tf.math.reduce_mean(l2))
+        print(tf.math.reduce_mean(l3))
+        print(tf.math.reduce_mean(l4))
+        print(tf.math.reduce_mean(l5))
+        print(tf.math.reduce_mean(l6))
         return lsum
 
     return loss
@@ -238,7 +246,8 @@ generator = batch_generator(batch_size=batch_size,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,
                             do_add_noise=False,
-                            do_data_augmentation=False
+                            do_data_augmentation=False,
+                            return_ones_masks=False
                             )
 
 inpainting_weights_filename = scripts_directory + "t1_inpainting_weights.h5"
@@ -247,7 +256,7 @@ if os.path.exists(inpainting_weights_filename):
 
 inpainting_unet.compile()
 # optimizer=keras.optimizers.SGD(learning_rate=0.02)
-optimizer=keras.optimizers.Adam(learning_rate=2e-4)
+optimizer=keras.optimizers.Adam(learning_rate=5e-5)
 train_acc_metric = keras.metrics.MeanSquaredError()
 val_acc_metric = keras.metrics.MeanSquaredError()
 

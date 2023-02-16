@@ -32,12 +32,12 @@ template = ants.image_read(antspynet.get_antsxnet_data("oasis"))
 ################################################
 
 image_modalities = ["FLAIR", "FLAIR", "FLAIR"]
-channel_size = len(image_modalities)
+channel_size = 3
 template_size = template.shape
 
 image_size=(224, 224)
 
-vgg16_model = antspynet.create_vgg_model_2d((224, 224, channel_size),
+vgg16_model = antspynet.create_vgg_model_2d((224, 224, 3),
                                              number_of_classification_labels=1,
                                              layers=(1, 2, 3, 4, 4),
                                              lowest_resolution=64,
@@ -64,7 +64,7 @@ else:
                                        classifier_activation='softmax')
     for i in range(len(vgg16_keras.layers)-1):
         vgg16_model.layers[i].set_weights(vgg16_keras.layers[i].get_weights())
-
+    
 
 ################################################
 #
@@ -83,7 +83,7 @@ flair_images = list()
 flair_ages = list()
 
 for i in range(len(flair_files)):
-    subject_id = flair_files[i].split('/')[6]
+    subject_id = flair_files[i].split('/')[6]   
     subject_row = demo[demo['participant_id'] == subject_id]
     if subject_row.shape[0] == 1:
         flair_images.append(flair_files[i])
@@ -120,7 +120,6 @@ generator = batch_generator(batch_size=batch_size,
                             t1s=flair_images,
                             t1_ages=flair_ages,
                             image_size=image_size,
-                            number_of_channels=channel_size,
                             template=template,
                             do_histogram_intensity_warping=False,
                             do_simulate_bias_field=False,
