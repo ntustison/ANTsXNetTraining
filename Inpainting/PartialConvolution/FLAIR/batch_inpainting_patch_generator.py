@@ -2,7 +2,7 @@ import numpy as np
 import random
 import ants
 import antspynet
-
+import skimage
 
 def batch_generator(batch_size=32,
                     patch_size=(64, 64, 64),
@@ -74,6 +74,35 @@ def batch_generator(batch_size=32,
         mask = mask * -1.0 + 1
 
         return mask
+
+    def create_random_lines_3d(domain_image,
+                               max_number_of_lines=50,
+                               max_dilation_radius=10):
+        image = ants.image_clone(domain_image) * 0
+
+        # Draw random lines
+        for _ in range(random.randint(1, max_number_of_lines)):
+            x1 = random.randint(1, domain_image.shape[0]-2)
+            x2 = random.randint(1, domain_image.shape[0]-2)
+            y1 = random.randint(1, domain_image.shape[1]-2)
+            y2 = random.randint(1, domain_image.shape[1]-2)
+            z1 = random.randint(1, domain_image.shape[2]-2)
+            z2 = random.randint(1, domain_image.shape[2]-2)
+            line_indices = skimage.draw.line_nd((x1, y1, z1), (x2, y2, z2), endpoint=True)
+            single_line_image_array = np.zeros(domain_image.shape)
+            single_line_image_array[line_indices] = 1
+            single_line_image = ants.from_numpy(np.squeeze(single_line_image_array),
+                origin=domain_image.origin, spacing=domain_image.spacing,
+                direction=domain_image.direction)
+            single_line_image = ants.iMath_MD(single_line_image,
+                radius=random.randint(4, max_dilation_radius))
+            image = image + single_line_image
+
+        image = ants.threshold_image(image, 0, 0, 0, 1)
+
+        mask = image * -1.0 + 1
+        return mask
+
 
     stride_length = np.array(patch_size) // 2
     max_number_of_patches_per_subject = 5
@@ -158,21 +187,24 @@ def batch_generator(batch_size=32,
                                spacing=t1.spacing, direction=t1.direction)
 
             quantiles = (t1.quantile(0.01), t1.quantile(0.99))
-            t1[t1 < quantiles[0]] = quantiles[0]
-            t1[t1 > quantiles[1]] = quantiles[1]
-
-            t1 = (t1 - t1.min()) / (t1.max() - t1.min())
+            # t1[t1 < quantiles[0]] = quantiles[0]
+            # t1[t1 > quantiles[1]] = quantiles[1]
 
             if not return_ones_masks:
-                mask = create_random_mask_3d(t1)
-                mask_inverted = (mask * -1.0 + 1.0) # * template_roi
-                mask = mask_inverted * -1.0 + 1.0
+                # mask = create_random_mask_3d(t1)
+                # mask_inverted = (mask * -1.0 + 1.0) # * template_roi
+                # mask = mask_inverted * -1.0 + 1.0
 
-                mask2 = create_random_mask2_3d(template, template_labels, template_roi)
-                mask = mask * mask2
+                # mask2 = create_random_mask2_3d(template, template_labels, template_roi)
+                # mask = mask * mask2
+
+                mask = create_random_lines_3d(template)
+                # mask = mask * mask3
+
             else:
                 mask = ants.image_clone(t1) * 0 + 1
 
+            t1 = (t1 - t1[mask == 1].min()) / (t1[mask == 1].max() - t1[mask == 1].min())
 
             image_patches = antspynet.extract_image_patches(t1, patch_size, max_number_of_patches="all",
                 stride_length=stride_length, random_seed=None, return_as_array=True)

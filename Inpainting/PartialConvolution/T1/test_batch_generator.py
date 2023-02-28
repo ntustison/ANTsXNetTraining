@@ -20,7 +20,7 @@ template = antspynet.pad_or_crop_image_to_size(template, template_image_size)
 template_labels = antspynet.pad_or_crop_image_to_size(template_labels, template_image_size)
 template_roi = antspynet.pad_or_crop_image_to_size(template_roi, template_image_size)
 
-batch_size = 16
+batch_size = 4
 
 generator = batch_generator(batch_size=batch_size,
                             t1s=t1_images,

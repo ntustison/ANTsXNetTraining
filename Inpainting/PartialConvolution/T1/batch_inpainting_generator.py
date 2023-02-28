@@ -2,11 +2,12 @@ import numpy as np
 import random
 import ants
 import antspynet
+import cv2
 
 
 def batch_generator(batch_size=32,
-                    patch_size=(64, 64, 64),
                     t1s=None,
+                    image_size=None,
                     number_of_channels=1,
                     template=None,
                     template_labels=None,
@@ -17,8 +18,7 @@ def batch_generator(batch_size=32,
                     do_simulate_bias_field=True,
                     do_add_noise=True,
                     do_data_augmentation=True,
-                    return_ones_masks=False,
-                    verbose=False):
+                    return_ones_masks=False):
 
 
     def create_random_mask_3d(domain_image,
@@ -37,6 +37,39 @@ def batch_generator(batch_size=32,
         mask = ants.threshold_image(field_image, -1.75, 1.75, 1, 0)
         return mask
 
+    def create_random_mask_2d(domain_image,
+                              max_number_of_lines=5,
+                              max_line_thickness=5,
+                              max_number_of_curves=5,
+                              max_number_of_ellipses=20):
+        image_array = np.zeros((*domain_image.shape, 3))
+
+        # Draw random lines
+        for _ in range(random.randint(1, max_number_of_lines)):
+            x1 = random.randint(1, domain_image.shape[0])
+            x2 = random.randint(1, domain_image.shape[0])
+            y1 = random.randint(1, domain_image.shape[1])
+            y2 = random.randint(1, domain_image.shape[1])
+            thickness = random.randint(1, max_line_thickness)
+            cv2.line(image_array, (x1, y1), (x2, y2), (1, 1, 1), thickness)
+
+        # Draw random ellipses
+        for _ in range(random.randint(1, max_number_of_ellipses)):
+            x1 = random.randint(1, domain_image.shape[0])
+            y1 = random.randint(1, domain_image.shape[1])
+            s1 = random.randint(1, int(0.1*domain_image.shape[0]))
+            s2 = random.randint(1, int(0.1*domain_image.shape[1]))
+            a1 = random.randint(1, 180)
+            a2 = random.randint(1, 180)
+            a3 = random.randint(1, 180)
+            cv2.ellipse(image_array, (x1, y1), (s1, s2), a1, a2, a3, (1, 1, 1), -1)
+
+        image = ants.from_numpy(np.squeeze(image_array[:,:,0]), origin=domain_image.origin,
+            spacing=domain_image.spacing, direction=domain_image.direction)
+
+        mask = image * -1.0 + 1
+        return mask
+
     def create_random_mask2_3d(template,
                                template_labels,
                                roi=None):
@@ -45,7 +78,7 @@ def batch_generator(batch_size=32,
         labels_array = labels_image.numpy()
 
         unique_labels = labels_image.unique().astype(int)[1:]
-        random_labels = random.sample(list(unique_labels), random.randint(2,10))
+        random_labels = random.sample(list(unique_labels), random.randint(2,4))
         random_labels_array = np.zeros_like(labels_array)
         for i in range(len(random_labels)):
             random_labels_array[labels_array == random_labels[i]] = 1
@@ -75,14 +108,22 @@ def batch_generator(batch_size=32,
 
         return mask
 
-    stride_length = np.array(patch_size) // 2
-    max_number_of_patches_per_subject = 5
+
+    verbose = False
+
+    template_lower = 58 + 10
+    template_upper = 188 - 10
+    slices_per_subject = 4
 
     while True:
 
-        X = np.zeros((batch_size, *patch_size, number_of_channels))
-        XMask = np.ones((batch_size, *patch_size, number_of_channels))
-        Y = np.zeros((batch_size, *patch_size, number_of_channels))
+        X = np.zeros((batch_size, *image_size, number_of_channels))
+        XMask = np.ones((batch_size, *image_size, number_of_channels))
+        Y = np.zeros((batch_size, *image_size, number_of_channels))
+
+        XPriors = None
+        if template_priors is not None:
+            XPriors = np.zeros((batch_size, *image_size, len(template_priors)))
 
         batch_count = 0
 
@@ -91,6 +132,8 @@ def batch_generator(batch_size=32,
             if verbose:
                 print("Batch count: " + str(batch_count))
 
+            if verbose:
+                print("    Augment input T1")
 
             # Augment the input T1
 
@@ -106,9 +149,6 @@ def batch_generator(batch_size=32,
             t1 = xfrm.apply_to_image(t1, template)
 
             if do_data_augmentation == True:
-
-                if verbose:
-                    print("    Augment input T1")
                 data_augmentation = antspynet.randomly_transform_image_data(template,
                     [[t1]],
                     [brain_mask],
@@ -161,37 +201,49 @@ def batch_generator(batch_size=32,
             t1[t1 < quantiles[0]] = quantiles[0]
             t1[t1 > quantiles[1]] = quantiles[1]
 
-            t1 = (t1 - t1.min()) / (t1.max() - t1.min())
-
             if not return_ones_masks:
-                mask = create_random_mask_3d(t1)
-                mask_inverted = (mask * -1.0 + 1.0) # * template_roi
-                mask = mask_inverted * -1.0 + 1.0
-
-                mask2 = create_random_mask2_3d(template, template_labels, template_roi)
-                mask = mask * mask2
+                # mask = create_random_mask_3d(t1)
+                # mask_inverted = (mask * -1.0 + 1.0) # * template_roi
+                # mask = mask_inverted * -1.0 + 1.0
+                mask = ants.image_clone(t1) * 0 + 1
             else:
                 mask = ants.image_clone(t1) * 0 + 1
 
+            # mask = create_random_mask2_3d(template, template_labels, template_roi)
 
-            image_patches = antspynet.extract_image_patches(t1, patch_size, max_number_of_patches="all",
-                stride_length=stride_length, random_seed=None, return_as_array=True)
-            mask_patches = antspynet.extract_image_patches(mask, patch_size, max_number_of_patches="all",
-                stride_length=stride_length, random_seed=None, return_as_array=True)
+            slice_numbers = random.sample(list(range(template_lower, template_upper)), slices_per_subject)
+            for i in range(len(slice_numbers)):
+                slice = ants.slice_image(t1, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                slice = antspynet.pad_or_crop_image_to_size(slice, image_size)
+                slice = (slice - slice.min()) / (slice.max() - slice.min())
 
-            number_of_patches = image_patches.shape[0]
+                # template_slice = ants.slice_image(template, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                # template_slice = antspynet.pad_or_crop_image_to_size(template_slice, image_size)
+                # template_slice = (template_slice - template_slice.min()) / (template_slice.max() - template_slice.min())
 
-            sample_patch_indices = random.sample(range(number_of_patches), max_number_of_patches_per_subject)
-            for i in range(len(sample_patch_indices)):
+                mask_slice = ants.slice_image(mask, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                if add_2d_masking and not return_ones_masks:
+                    mask_slice = create_random_mask_2d(mask_slice) * mask_slice
+                    # if template_roi is not None:
+                    #     template_roi_slice = ants.slice_image(template_roi, axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                    #     mask_slice = ((mask_slice * -1.0 + 1.0) * template_roi_slice) * -1.0 + 1.0
+                mask_slice_inverted = ants.threshold_image(mask_slice, 0, 0, 1, 0)
+                mask_slice_inverted = antspynet.pad_or_crop_image_to_size(mask_slice_inverted, image_size)
+                mask_slice = ants.threshold_image(mask_slice_inverted, 0, 0, 1, 0)
+                slice_masked = slice * mask_slice
+                slice_masked[mask_slice == 0] = 1
 
-                image_patch = image_patches[sample_patch_indices[i],:,:,:]
-                mask_patch = mask_patches[sample_patch_indices[i],:,:,:]
-                masked_image_patch = image_patch * mask_patch
-                masked_image_patch[mask_patch == 0] = 1
+                for j in range(number_of_channels):
+                    X[batch_count,:,:,j] = slice_masked.numpy()
+                    XMask[batch_count,:,:,j] = mask_slice.numpy()
+                    Y[batch_count,:,:,j] = slice.numpy()
 
-                X[batch_count,:,:,:,0] = masked_image_patch
-                XMask[batch_count,:,:,:,0] = mask_patch
-                Y[batch_count,:,:,:,0] = image_patch
+                if template_priors is not None:
+                    for j in range(len(template_priors)):
+                        template_prior_slice = ants.slice_image(template_priors[j], axis=1, idx=slice_numbers[i], collapse_strategy=1)
+                        template_prior_slice = antspynet.pad_or_crop_image_to_size(template_prior_slice, image_size)
+                        XPriors[batch_count,:,:,j] = template_prior_slice.numpy()
+
 
                 batch_count = batch_count + 1
                 if batch_count >= batch_size:
@@ -200,5 +252,8 @@ def batch_generator(batch_size=32,
             if batch_count >= batch_size:
                 break
 
-        yield [X, XMask], Y
+        if template_priors is not None:
+            yield [X, XMask, XPriors], Y
+        else:
+            yield [X, XMask], Y
 
