@@ -23,7 +23,7 @@ def batch_generator(batch_size=32,
 
     image_size = t1_template.shape
 
-    if which_model == "whole":     
+    if which_model == "whole" or which_model == "labels_ala_dkt":     
         number_of_channels = 1
     elif which_model == "tissue":
         number_of_channels = 4 
@@ -67,8 +67,13 @@ def batch_generator(batch_size=32,
                 t1 = ants.add_noise_to_image(t1, noise_model="additivegaussian", noise_parameters=noise_parameters)
 
             if do_simulate_bias_field and random.sample((True, False), 1)[0]:
-                t1_field = antspynet.simulate_bias_field(t1, sd_bias_field=0.05) 
-                t1 = ants.iMath(t1, "Normalize") * (t1_field + 1)
+                # t1_field = antspynet.simulate_bias_field(t1, sd_bias_field=0.05) 
+                # t1 = ants.iMath(t1, "Normalize") * (t1_field + 1)
+                # t1 = (t1 - t1.min()) / (t1.max() - t1.min())
+                log_field = antspynet.simulate_bias_field(t1, number_of_points=10, sd_bias_field=1.0, number_of_fitting_levels=2, mesh_size=10)
+                log_field = log_field.iMath("Normalize")
+                field_array = np.power(np.exp(log_field.numpy()), random.sample((2, 3, 4), 1)[0])
+                t1 = t1 * ants.from_numpy(field_array, origin=t1.origin, spacing=t1.spacing, direction=t1.direction)
                 t1 = (t1 - t1.min()) / (t1.max() - t1.min())
 
             if do_data_augmentation == True:
@@ -113,7 +118,7 @@ def batch_generator(batch_size=32,
             yield X, encY2, None
         elif which_model == "tissue":
             yield X, encY3, None
-        elif which_model == "labels":    
+        elif which_model == "labels" or which_model == "labels_ala_dkt" or which_model == "labels_hybrid":    
             yield X, encY, None
         else:    
             yield X, [encY, Y2, encY3], [None, None, None]

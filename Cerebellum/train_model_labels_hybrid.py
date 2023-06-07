@@ -6,7 +6,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras import regularizers
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import glob
 
 import random
@@ -35,13 +35,13 @@ priors = list()
 image_size = (240, 144, 144)
 
 # Load CSF/GM/WM labels
-for p in range(1, 4):
-    prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
-    prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
-    priors.append(prior)
+# for p in range(1, 4):
+#     prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
+#     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
+#     priors.append(prior)
 
 # Load regional labels
-prior_labels = (*list(range(1, 14)), *list(range(100, 114)))
+prior_labels = (*list(range(1, 13)), *list(range(101, 113)))
 for p in prior_labels:
     prior = ants.image_read(prior_directory + "T_template0_label_prior_" + str(p) + ".nii.gz")
     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
@@ -65,14 +65,13 @@ unet_model = antspynet.create_unet_model_3d((*image_size, channel_size),
    number_of_filters=(32, 64, 96, 128, 256),
    convolution_kernel_size=(3, 3, 3), deconvolution_kernel_size=(2, 2, 2),
    dropout_rate=0.0, weight_decay=0,
-   additional_options=None)
+   additional_options=["attentionGating"])
 
 weighted_loss_labels = antspynet.weighted_categorical_crossentropy(weights=(1, *(10,) * len(prior_labels)))
-
 dice_loss = antspynet.multilabel_dice_coefficient(dimensionality=3, smoothing_factor=0.)
 
 unet_model = Model(inputs=unet_model.input, outputs=unet_model.output)
-weights_filename = scripts_directory + "cerebellumHierarchical_labels.h5"
+weights_filename = scripts_directory + "cerebellumHierarchical_labels_hybrid.h5"
 
 if os.path.exists(weights_filename):
     unet_model.load_weights(weights_filename)
@@ -98,7 +97,7 @@ training_tissue_files = list()
 for i in range(len(t1_images)):
 
     subject_directory = os.path.dirname(t1_images[i])
-    labels_image = t1_images[i].replace("region", "labels")
+    labels_image = t1_images[i].replace("region", "simplified_labels")
     tissue_image = t1_images[i].replace("region", "tissue")
 
     training_t1_files.append(t1_images[i])
@@ -114,7 +113,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 2 
+batch_size = 2
 
 generator = batch_generator(batch_size=batch_size,
                             t1s=training_t1_files,
@@ -127,7 +126,7 @@ generator = batch_generator(batch_size=batch_size,
                             do_simulate_bias_field=True,
                             do_add_noise=True,
                             do_data_augmentation=True,
-                            which_model="labels"
+                            which_model="labels_hybrid"
                             )
 
 track = unet_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,

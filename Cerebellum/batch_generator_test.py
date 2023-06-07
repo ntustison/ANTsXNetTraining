@@ -23,7 +23,7 @@ def batch_generator(batch_size=32,
 
     image_size = t1_template.shape
 
-    if which_model == "whole":     
+    if which_model == "whole" or which_model == "labels_ala_dkt":     
         number_of_channels = 1
     elif which_model == "tissue":
         number_of_channels = 4 
@@ -67,8 +67,13 @@ def batch_generator(batch_size=32,
                 t1 = ants.add_noise_to_image(t1, noise_model="additivegaussian", noise_parameters=noise_parameters)
 
             if do_simulate_bias_field and random.sample((True, False), 1)[0]:
-                t1_field = antspynet.simulate_bias_field(t1, sd_bias_field=0.05) 
-                t1 = ants.iMath(t1, "Normalize") * (t1_field + 1)
+                # t1_field = antspynet.simulate_bias_field(t1, sd_bias_field=0.05) 
+                # t1 = ants.iMath(t1, "Normalize") * (t1_field + 1)
+                # t1 = (t1 - t1.min()) / (t1.max() - t1.min())
+                log_field = antspynet.simulate_bias_field(t1, number_of_points=10, sd_bias_field=1.0, number_of_fitting_levels=2, mesh_size=10)
+                log_field = log_field.iMath("Normalize")
+                field_array = np.power(np.exp(log_field.numpy()), random.sample((2, 3, 4), 1)[0])
+                t1 = t1 * ants.from_numpy(field_array, origin=t1.origin, spacing=t1.spacing, direction=t1.direction)
                 t1 = (t1 - t1.min()) / (t1.max() - t1.min())
 
             if do_data_augmentation == True:
@@ -108,18 +113,15 @@ def batch_generator(batch_size=32,
         encY3 = antspynet.encode_unet(Y3.astype('int'), (0, 1, 2, 3))
         Y2 = np.sum(encY3[:,:,:,:,1:], axis=4)
         encY2 = antspynet.encode_unet(Y2.astype('int'), (0, 1))
-
+            
         if which_model == "whole":
-            yield X, encY2, None
+            yield X, Y2, None
         elif which_model == "tissue":
             yield X, Y3, None
-        elif which_model == "labels":    
+        elif which_model == "labels" or which_model == "labels_ala_dkt":    
             yield X, Y, None
         else:    
-            yield X, [Y, Y2, Y3], [None, None, None]
-
-
-
+            yield X, [encY, Y2, encY3], [None, None, None]
 
 
 

@@ -6,7 +6,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras import regularizers
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import glob
 
 import random
