@@ -23,7 +23,9 @@ def batch_generator(batch_size=32,
 
     image_size = t1_template.shape
 
-    if which_model == "whole" or which_model == "labels_ala_dkt":     
+    if which_model == "whole":
+        number_of_channels = 2 
+    elif which_model == "labels_ala_dkt":     
         number_of_channels = 1
     elif which_model == "tissue":
         number_of_channels = 4 
@@ -77,6 +79,10 @@ def batch_generator(batch_size=32,
                 t1 = (t1 - t1.min()) / (t1.max() - t1.min())
 
             if do_data_augmentation == True:
+                if which_model == "whole":
+                    sd_noise = 5.0
+                else:
+                    sd_noise = 2.0
                 data_augmentation = antspynet.randomly_transform_image_data(t1,
                     [[t1]],
                     [labels],
@@ -85,7 +91,7 @@ def batch_generator(batch_size=32,
                     sd_affine=0.01,
                     deformation_transform_type="bspline",
                     number_of_random_points=1000,
-                    sd_noise=2.0,
+                    sd_noise=sd_noise,
                     number_of_fitting_levels=4,
                     mesh_size=1,
                     sd_smoothing=4.0,
@@ -96,8 +102,8 @@ def batch_generator(batch_size=32,
                 t1 = data_augmentation['simulated_images'][0][0]
                 labels = data_augmentation['simulated_segmentation_images'][0]
 
-            if which_model == "tissue" or which_model == "labels":
-                t1 *= ants.threshold_image(labels, 0, 0, 0, 1)
+            if which_model == "tissue" or which_model == "labels" or which_model == "labels_hybrid" or which_model == "labels_ala_dkt":
+                t1 *= ants.threshold_image(tissue, 0, 0, 0, 1)
             
             t1 = (t1 - t1.min()) / (t1.max() - t1.min())  
 

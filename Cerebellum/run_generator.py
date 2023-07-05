@@ -9,22 +9,24 @@ from batch_generator_test import batch_generator
 
 base_directory = '/home/ntustison/Data/Cerebellum/'
 scripts_directory = base_directory + 'Scripts/'
-prior_directory = base_directory + "TemplateResampled0.6/"
-data_directory = base_directory + "TrainingDataResampled0.6/"
+prior_directory = base_directory + "TemplateResampled0.5/"
+data_directory = base_directory + "TrainingDataResampled0.5/"
 
 priors = list()
 
 # image_size = (233, 151, 154)
-image_size = (224, 128, 128)
+# image_size = (224, 128, 128)
+image_size = (240, 144, 144)
 
 # Load CSF/GM/WM labels
-for p in range(1, 4):
-    prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
-    prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
-    priors.append(prior)
+# for p in range(1, 4):
+#     prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
+#     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
+#     priors.append(prior)
 
 # Load regional labels
-prior_labels = (*list(range(1, 14)), *list(range(100, 114)))
+prior_labels = (*list(range(1, 13)), *list(range(101, 113)))
+simplified_prior_labels = (*list(range(1, 13)), *list(range(101, 113)))
 for p in prior_labels:
     prior = ants.image_read(prior_directory + "T_template0_label_prior_" + str(p) + ".nii.gz")
     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
@@ -53,10 +55,16 @@ training_t1_files = list()
 training_labels_files = list()
 training_tissue_files = list()
 
+which_model = "whole"
+
 for i in range(len(t1_images)):
 
     subject_directory = os.path.dirname(t1_images[i])
-    labels_image = t1_images[i].replace("region", "labels")
+    if which_model == "labels_ala_dkt" or which_model == "labels_hybrid":
+        labels_image = t1_images[i].replace("region", "simplified_labels")
+    else:
+        labels_image = t1_images[i].replace("region", "labels")
+
     tissue_image = t1_images[i].replace("region", "tissue")
 
     training_t1_files.append(t1_images[i])
@@ -73,7 +81,10 @@ print( "Training")
 #
 
 batch_size = 10
-which_model = "whole"
+if which_model == "labels_ala_dkt" or which_model == "labels_hybrid":
+    labels = simplified_prior_labels
+else:
+    labels = prior_labels
 
 generator = batch_generator(batch_size=batch_size,
                             t1s=training_t1_files,
@@ -81,7 +92,7 @@ generator = batch_generator(batch_size=batch_size,
                             labels_images=training_labels_files,
                             tissue_images=training_tissue_files,
                             priors=priors,
-                            regional_labels=prior_labels,
+                            regional_labels=labels,
                             do_histogram_intensity_warping=True,
                             do_simulate_bias_field=True,
                             do_add_noise=True,
@@ -96,7 +107,7 @@ for i in range(X.shape[0]):
     ants.image_write(ants.from_numpy(np.squeeze(X[i,:,:,:,0]),
                      origin=t1_template.origin, spacing=t1_template.spacing,
                      direction=t1_template.direction), "batchX_" + str(i) + ".nii.gz")
-    if which_model == "labels":
+    if which_model == "labels_ala_dkt" or which_model == "labels_hybrid":
         ants.image_write(ants.from_numpy(np.squeeze(Y[i,:,:,:]),
                      origin=t1_template.origin, spacing=t1_template.spacing,
                      direction=t1_template.direction), "batchY" + str(i) + ".nii.gz")

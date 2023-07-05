@@ -27,7 +27,9 @@ tf.compat.v1.disable_eager_execution()
 base_directory = '/home/ntustison/Data/Cerebellum/'
 scripts_directory = base_directory + 'Scripts/'
 prior_directory = base_directory + "TemplateResampled0.5/"
-data_directory = base_directory + "TrainingDataResampled0.5/"
+data_directory = base_directory + "TrainingData/maget/"
+data_directory2 = base_directory + "TrainingData/ppmi_mt/"
+data_directory3 = base_directory + "TrainingData/ppmi_mt2/"
 
 priors = list()
 
@@ -35,20 +37,24 @@ priors = list()
 image_size = (240, 144, 144)
 
 # Load CSF/GM/WM labels
-for p in range(1, 4):
-    prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
-    prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
-    priors.append(prior)
+# for p in range(1, 4):
+#     prior = ants.image_read(prior_directory + "T_template0Posteriors" + str(p) + ".nii.gz")
+#     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
+#     priors.append(prior)
 
 # Load regional labels
 prior_labels = (*list(range(1, 14)), *list(range(100, 114)))
-for p in prior_labels:
-    prior = ants.image_read(prior_directory + "T_template0_label_prior_" + str(p) + ".nii.gz")
-    prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
-    priors.append(prior)
+# for p in prior_labels:
+#     prior = ants.image_read(prior_directory + "T_template0_label_prior_" + str(p) + ".nii.gz")
+#     prior = antspynet.pad_or_crop_image_to_size(prior, image_size)
+#     priors.append(prior)
 
 t1_template = ants.image_read(prior_directory + "T_template0N4.nii.gz")
 t1_template = antspynet.pad_or_crop_image_to_size(t1_template, image_size)
+t1_template = (t1_template - t1_template.min()) / (t1_template.max() - t1_template.min())
+
+priors = list()
+priors.append(t1_template)
 
 ################################################
 #
@@ -58,27 +64,28 @@ t1_template = antspynet.pad_or_crop_image_to_size(t1_template, image_size)
 
 number_of_classification_labels = 2
 image_modalities = ["T1"]
-channel_size = 1
+channel_size = 2
 
 unet_model = antspynet.create_unet_model_3d((*image_size, channel_size),
    number_of_outputs=number_of_classification_labels, mode="classification", 
    number_of_filters=(32, 64, 96, 128, 256),
    convolution_kernel_size=(3, 3, 3), deconvolution_kernel_size=(2, 2, 2),
    dropout_rate=0.0, weight_decay=0,
-   additional_options=None)
+   additional_options=["attentionGating"])
 
-binary_loss = antspynet.binary_dice_coefficient(smoothing_factor=0.1)
-binary_loss = antspynet.multilabel_dice_coefficient(smoothing_factor=0.0)
-# binary_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+# binary_loss = antspynet.binary_dice_coefficient(smoothing_factor=0.1)
+dice_loss = antspynet.multilabel_dice_coefficient(smoothing_factor=0.0)
+binary_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
 
 unet_model = Model(inputs=unet_model.input, outputs=unet_model.output)
-weights_filename = scripts_directory + "cerebellumHierarchical_whole.h5"
+weights_filename = scripts_directory + "cerebellumHierarchical_whole_with_priors.h5"
 
 if os.path.exists(weights_filename):
     unet_model.load_weights(weights_filename)
 
 unet_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-                    loss=binary_loss)
+                    loss=dice_loss,
+                    metrics=[dice_loss])
 
 ################################################
 #
@@ -101,6 +108,32 @@ for i in range(len(t1_images)):
     tissue_image = t1_images[i].replace("region", "tissue")
 
     training_t1_files.append(t1_images[i])
+    training_labels_files.append(labels_image)
+    training_tissue_files.append(tissue_image)
+
+t1_mask_images = glob.glob(data_directory2 + "*mask*.nii.gz")
+
+for i in range(len(t1_mask_images)):
+
+    t1_image = t1_mask_images[i].replace("mask_", "")
+
+    labels_image = t1_mask_images[i]
+    tissue_image = t1_mask_images[i]
+
+    training_t1_files.append(t1_image)
+    training_labels_files.append(labels_image)
+    training_tissue_files.append(tissue_image)
+
+t1_mask_images = glob.glob(data_directory3 + "*mask*.nii.gz")
+
+for i in range(len(t1_mask_images)):
+
+    t1_image = t1_mask_images[i].replace("mask_", "")
+
+    labels_image = t1_mask_images[i]
+    tissue_image = t1_mask_images[i]
+
+    training_t1_files.append(t1_image)
     training_labels_files.append(labels_image)
     training_tissue_files.append(tissue_image)
 
