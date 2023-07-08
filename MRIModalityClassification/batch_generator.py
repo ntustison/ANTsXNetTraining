@@ -32,7 +32,14 @@ def batch_generator(batch_size,
         for i in range(len(random_indices)):
             image = ants.image_read(image_files[random_indices[i]])
 
-            if random.uniform(0, 1.0) < 0.75:
+            center_of_mass_template = ants.get_center_of_mass(template*0 + 1)
+            center_of_mass_image = ants.get_center_of_mass(image*0 + 1)
+            translation = np.asarray(center_of_mass_image) - np.asarray(center_of_mass_template)
+            xfrm = ants.create_ants_transform(transform_type="Euler3DTransform",
+                center=np.asarray(center_of_mass_template), translation=translation)
+            image = ants.apply_ants_transform_to_image(xfrm, image, template)
+
+            if random.uniform(0, 0.75) < 1.0:
                 data_aug = antspynet.data_augmentation(input_image_list=[[image]],
                                                     segmentation_image_list=None,
                                                     pointset_list=None,
@@ -46,13 +53,6 @@ def batch_generator(batch_size,
                                                     output_numpy_file_prefix=None,
                                                     verbose=False)
                 image = data_aug['simulated_images'][0][0]
-            else:     
-                center_of_mass_template = ants.get_center_of_mass(template*0 + 1)
-                center_of_mass_image = ants.get_center_of_mass(image*0 + 1)
-                translation = np.asarray(center_of_mass_image) - np.asarray(center_of_mass_template)
-                xfrm = ants.create_ants_transform(transform_type="Euler3DTransform",
-                    center=np.asarray(center_of_mass_template), translation=translation)
-                image = ants.apply_ants_transform_to_image(xfrm, image, template)
                 
             image = (image - image.min()) / (image.max() - image.min())
             X[i,:,:,:,0] = image.numpy()

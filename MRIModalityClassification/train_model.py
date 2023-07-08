@@ -106,7 +106,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 32 
+batch_size = 16 
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=images,
