@@ -1,8 +1,11 @@
 import ants
 import antspynet
+import pandas as pd
+import numpy as np
+from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import glob
 
 import numpy as np
@@ -20,53 +23,10 @@ if len(gpus) > 0:
 
 tf.compat.v1.disable_eager_execution()
 
-base_directory = '/home/ntustison/Data/MRIModalityClassification/'
+base_directory = '/home/ntustison/Data/XRayCT/'
+# base_directory = '/Users/ntustison/Data/Public/XRayCT/'
 scripts_directory = base_directory + 'Scripts/'
-data_directory = base_directory + "Nifti/"
-
-priors = list()
-
-image_size = (224, 224, 224)
-template = ants.image_read(antspynet.get_antsxnet_data("kirby"))
-template = ants.resample_image(template, (1, 1, 1))
-template = antspynet.pad_or_crop_image_to_size(template, image_size)
-direction = template.direction
-direction[0, 0] = 1.0
-ants.set_direction(template, direction)
-ants.set_origin(template, (0, 0, 0))
-
-################################################
-#
-#  Create the model and load weights
-#
-################################################
-
-# modalities:
-#     T1
-#     T2
-#     FLAIR
-#     T2Star
-#     Mean DWI
-#     Mean Bold
-#     ASL perfusion
-
-number_of_classification_labels = 7
-channel_size = 1
-
-model = antspynet.create_resnet_model_3d((*image_size, channel_size),
-   number_of_classification_labels=number_of_classification_labels,
-   mode="classification",
-   layers=(1, 2, 3, 4),
-   residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
-   cardinality=1, squeeze_and_excite=False)
-
-weights_filename = scripts_directory + "mri_modality_classification.h5"
-
-if os.path.exists(weights_filename):
-    model.load_weights(weights_filename)
-
-model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-              loss=tf.keras.losses.CategoricalCrossentropy())
+data_directory = base_directory + "Data/"
 
 ################################################
 #
@@ -74,43 +34,87 @@ model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
 #
 ################################################
 
-print("Loading brain data.")
+train_images_file = base_directory + "CXR8-selected/train_val_list.txt"
+with open(train_images_file) as f:
+    train_images_list = f.readlines()
+f.close()
+train_images_list = [x.strip() for x in train_images_list]
 
-t1_images = glob.glob(data_directory + "**/*T1w.nii.gz", recursive=True)
-t2_images = glob.glob(data_directory + "**/*T2w.nii.gz", recursive=True)
-flair_images = glob.glob(data_directory + "**/*FLAIR.nii.gz", recursive=True)
-t2star_images = glob.glob(data_directory + "**/*T2starw.nii.gz", recursive=True)
-dwi_images = glob.glob(data_directory + "**/*MeanDwi.nii.gz", recursive=True)
-bold_images = glob.glob(data_directory + "**/*MeanBold.nii.gz", recursive=True)
-perf_images = glob.glob(data_directory + "**/*asl.nii.gz", recursive=True)
+demo2017_file = base_directory + "CXR8-selected/BBox_List_2017.csv"
+demo2017 = pd.read_csv(demo2017_file)
 
-images = t1_images + t2_images + flair_images + t2star_images + dwi_images + bold_images + perf_images
-modalities = np.concatenate((
-             np.zeros((len(t1_images),), dtype=np.int8),
-             np.zeros((len(t2_images),), dtype=np.int8) + 1,
-             np.zeros((len(flair_images),), dtype=np.int8) + 2,
-             np.zeros((len(t2star_images),), dtype=np.int8) + 3,
-             np.zeros((len(dwi_images),), dtype=np.int8) + 4,
-             np.zeros((len(bold_images),), dtype=np.int8) + 5,
-             np.zeros((len(perf_images),), dtype=np.int8) + 6),
-             dtype=np.int8
-             )
+demo_file = base_directory + "CXR8-selected/Data_Entry_2017_v2020.csv"
+demo = pd.read_csv(demo_file)
 
-print( "Training")
+def unique(list1):
+    unique_list = [] 
+    # traverse for all elements
+    for x in list1:
+        # check if exists in unique_list or not
+        if x not in unique_list:
+            unique_list.append(x)
+    return sorted(unique_list)
+
+unique_labels = demo['Finding Labels'].unique()
+unique_labels_unroll = []
+for i in range(len(unique_labels)):
+    label = unique_labels[i]
+    labels = label.split('|')
+    for j in range(len(labels)):
+        unique_labels_unroll.append(labels[j])
+
+unique_labels = unique(unique_labels_unroll)
+
+# train_images_list = train_images_list[:1000]
+training_demo_file = base_directory + "training_demo.npy"
+training_demo = None
+if os.path.exists(training_demo_file):
+    training_demo = np.load(training_demo_file)
+else:
+    training_demo = np.zeros((len(train_images_list), len(unique_labels)))
+    for i in tqdm(range(len(train_images_list))):
+        image_filename = train_images_list[i]
+        row = demo.loc[demo['Image Index'] == image_filename]
+        findings = row['Finding Labels'].str.cat().split("|")
+        for j in range(len(findings)):
+            training_demo[i, unique_labels.index(findings[j])] = 1.0
+    np.save(training_demo_file, training_demo)        
+
+################################################
+#
+#  Create the model and load weights
+#
+################################################
+
+number_of_classification_labels = len(unique_labels)
+
+model = antspynet.create_resnet_model_2d((None, None, 1),
+   number_of_classification_labels=number_of_classification_labels,
+   mode="regression",
+   layers=(1, 2, 3, 4),
+   residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+   cardinality=1, squeeze_and_excite=False)
+
+weights_filename = scripts_directory + "xray_classification.h5"
+
+if os.path.exists(weights_filename):
+    model.load_weights(weights_filename)
+
+model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
+              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True))
 
 ###
 #
 # Set up the training generator
 #
 
-batch_size = 2
+batch_size = 8
 
 generator = batch_generator(batch_size=batch_size,
-                            image_files=images,
-                            template=template,
-                            modalities=modalities)
+                            image_files=train_images_list,
+                            demo=training_demo)
 
-track = model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,
+track = model.fit(x=generator, epochs=10000, verbose=1, steps_per_epoch=128,
     callbacks=[
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),

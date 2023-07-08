@@ -24,11 +24,14 @@ base_directory = '/home/ntustison/Data/MRIModalityClassification/'
 scripts_directory = base_directory + 'Scripts/'
 data_directory = base_directory + "Nifti/"
 
-priors = list()
+# image_size = (224, 224, 224)
+# resample_size = (1, 1, 1)
 
-image_size = (224, 224, 224)
+image_size = (112, 112, 112)
+resample_size = (2, 2, 2)
+
 template = ants.image_read(antspynet.get_antsxnet_data("kirby"))
-template = ants.resample_image(template, (1, 1, 1))
+template = ants.resample_image(template, resample_size)
 template = antspynet.pad_or_crop_image_to_size(template, image_size)
 direction = template.direction
 direction[0, 0] = 1.0
@@ -53,7 +56,7 @@ ants.set_origin(template, (0, 0, 0))
 number_of_classification_labels = 7
 channel_size = 1
 
-model = antspynet.create_resnet_model_3d((*image_size, channel_size),
+model = antspynet.create_resnet_model_3d((None, None, None, channel_size),
    number_of_classification_labels=number_of_classification_labels,
    mode="classification",
    layers=(1, 2, 3, 4),
@@ -103,7 +106,7 @@ print( "Training")
 # Set up the training generator
 #
 
-batch_size = 2
+batch_size = 32 
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=images,
