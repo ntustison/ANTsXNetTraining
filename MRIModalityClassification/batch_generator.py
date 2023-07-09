@@ -39,14 +39,17 @@ def batch_generator(batch_size,
                 center=np.asarray(center_of_mass_template), translation=translation)
             image = ants.apply_ants_transform_to_image(xfrm, image, template)
 
-            if random.uniform(0, 0.75) < 1.0:
+            if random.uniform(0.0, 1.0) < 0.75:
+                noise_model = None
+                if random.uniform(0.0, 1.0) < 0.33:
+                    noise_model = ("additivegaussian", "shot", "saltandpepper")
                 data_aug = antspynet.data_augmentation(input_image_list=[[image]],
                                                     segmentation_image_list=None,
                                                     pointset_list=None,
                                                     number_of_simulations=1,
                                                     reference_image=template,
                                                     transform_type='affineAndDeformation',
-                                                    noise_model=("additivegaussian", "shot", "saltandpepper"),
+                                                    noise_model=noise_model,
                                                     sd_simulated_bias_field=1.0,
                                                     sd_histogram_warping=0.05,
                                                     sd_affine=0.05,
