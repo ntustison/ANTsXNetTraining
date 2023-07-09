@@ -10,8 +10,6 @@ import torch
 import torchinfo
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
-from torchvision import datasets
-from torchvision.transforms import ToTensor
 
 import numpy as np
 import random
@@ -169,8 +167,7 @@ class MRIDataset(Dataset):
             image = data_aug['simulated_images'][0][0]
         image = (image - image.min()) / (image.max() - image.min())
 
-        modality = np.zeros((7,))
-        modality[self.modalities[random_index]] = 1
+        modality = torch.tensor([self.modalities[random_index]])
 
         sample = {'image': image.numpy(), 'modality': modality}
 
