@@ -57,6 +57,10 @@ model = deepsimlr.create_resnet_model_3d(input_channel_size=channel_size,
                                          squeeze_and_excite=False)
 # torchinfo.summary(model, input_size=(1, 1, *image_size))
 
+weights_filename = scripts_directory + "mri_modality_classification_pytorch.h5"
+if os.path.exists(weights_filename):
+    model.load_state_dict(torch.load(weights_filename))
+
 # model2 = antspynet.create_resnet_model_3d((None, None, None, channel_size),
 #                                           number_of_classification_labels=number_of_classification_labels,
 #                                           mode="classification",
@@ -66,10 +70,7 @@ model = deepsimlr.create_resnet_model_3d(input_channel_size=channel_size,
 #                                           cardinality=1,
 #                                           squeeze_and_excite=False)
 
-# weights_filename = scripts_directory + "mri_modality_classification_pytorch.h5"
 
-# if os.path.exists(weights_filename):
-#     model.load_weights(weights_filename)
 
 # model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
 #               loss=tf.keras.losses.CategoricalCrossentropy())
@@ -165,15 +166,21 @@ class MRIDataset(Dataset):
             image = data_aug['simulated_images'][0][0]
         image = (image - image.min()) / (image.max() - image.min())
 
-        image_tensor = torch.from_numpy(image.numpy())
+        image_array = np.expand_dims(image.numpy(), axis=-1)
+
+        # swap color axis because
+        # numpy image: H x W x D x C
+        # torch image: C x H x W x D
+
+        image_array = image_array.transpose((3, 0, 1, 2))
+        image_tensor = torch.from_numpy(image_array)
         modality = torch.tensor([self.modalities[random_index]])
 
         return image_tensor, modality
 
 transformed_dataset = MRIDataset(image_files=images,
                                  template=template,
-                                 modalities=modalities,
-                                 transform=None)
+                                 modalities=modalities)
 train_dataloader = DataLoader(transformed_dataset, batch_size=16,
                         shuffle=True, num_workers=4)
 test_dataloader = DataLoader(transformed_dataset, batch_size=16,
@@ -234,3 +241,5 @@ for t in range(epochs):
     train_loop(train_dataloader, model, loss_fn, optimizer)
     test_loop(test_dataloader, model, loss_fn)
 print("Done!")
+
+torch.save(model.state_dict(), weights_filename)
