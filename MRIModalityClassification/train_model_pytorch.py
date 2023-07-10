@@ -211,7 +211,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         optimizer.step()
         optimizer.zero_grad()
 
-        if batch % 1 == 0:
+        if batch % 10 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
@@ -235,16 +235,22 @@ def test_loop(dataloader, model, loss_fn):
     test_loss /= num_batches
     correct /= size
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    return correct
 
 
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
 
+current_accuracy = 0.0
+
 epochs = 200
 for t in range(epochs):
     print(f"Epoch {t+1}\n-------------------------------")
     train_loop(train_dataloader, model, loss_fn, optimizer)
-    test_loop(test_dataloader, model, loss_fn)
+    accuracy = test_loop(test_dataloader, model, loss_fn)
+    if accuracy > current_accuracy:
+        print("Accuracy improved.")
+        torch.save(model.state_dict(), weights_filename)
+        current_accuracy = accuracy
 print("Done!")
 
-torch.save(model.state_dict(), weights_filename)
