@@ -4,15 +4,19 @@ import deepsimlr
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
 import glob
 
 import torch
 import torchinfo
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
+from torch.nn import functional as F
 
 import numpy as np
 import random
+
+torch.device(3)
 
 base_directory = '/home/ntustison/Data/MRIModalityClassification/'
 scripts_directory = base_directory + 'Scripts/'
@@ -174,7 +178,8 @@ class MRIDataset(Dataset):
 
         image_array = image_array.transpose((3, 0, 1, 2))
         image_tensor = torch.from_numpy(image_array)
-        modality = torch.tensor([self.modalities[random_index]])
+
+        modality = int(float(self.modalities[random_index]))
 
         return image_tensor, modality
 
@@ -199,14 +204,14 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     for batch, (X, y) in enumerate(dataloader):
         # Compute prediction and loss
         pred = model(X)
-        loss = loss_fn(pred, y)
+        loss = loss_fn(pred, y.squeeze())
 
         # Backpropagation
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
 
-        if batch % 100 == 0:
+        if batch % 1 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
