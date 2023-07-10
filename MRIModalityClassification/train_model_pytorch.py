@@ -116,8 +116,7 @@ class MRIDataset(Dataset):
     def __init__(self,
                  image_files,
                  template,
-                 modalities,
-                 transform=None):
+                 modalities):
         """
         Arguments:
             csv_file (string): Path to the csv file with annotations.
@@ -128,7 +127,6 @@ class MRIDataset(Dataset):
         self.image_files = image_files
         self.template = template
         self.modalities = modalities
-        self.transform = transform
 
     def __len__(self):
         return len(self.image_files)
@@ -167,14 +165,10 @@ class MRIDataset(Dataset):
             image = data_aug['simulated_images'][0][0]
         image = (image - image.min()) / (image.max() - image.min())
 
+        image_tensor = torch.from_numpy(image.numpy())
         modality = torch.tensor([self.modalities[random_index]])
 
-        sample = {'image': image.numpy(), 'modality': modality}
-
-        if self.transform:
-            sample = self.transform(sample)
-
-        return sample
+        return image_tensor, modality
 
 transformed_dataset = MRIDataset(image_files=images,
                                  template=template,
