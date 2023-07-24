@@ -1,6 +1,7 @@
 import ants
 import antspynet
 import deepsimlr
+import time
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "3"
@@ -185,10 +186,13 @@ class MRIDataset(Dataset):
 
 transformed_dataset = MRIDataset(image_files=images,
                                  template=template,
-                                 number_of_samples=32)
-train_dataloader = DataLoader(transformed_dataset, batch_size=32,
+                                 number_of_samples=32*16)
+transformed_dataset_testing = MRIDataset(image_files=images,
+                                        template=template,
+                                        number_of_samples=16)
+train_dataloader = DataLoader(transformed_dataset, batch_size=16,
                         shuffle=True, num_workers=4)
-test_dataloader = DataLoader(transformed_dataset, batch_size=8,
+test_dataloader = DataLoader(transformed_dataset_testing, batch_size=16,
                         shuffle=True, num_workers=4)
 
 ###
@@ -202,6 +206,8 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     # Unnecessary in this situation but added for best practices
     model.train()
     for batch, (X, y) in enumerate(dataloader):
+        start = time.time()
+
         # Compute prediction and loss
         pred = model(X)
         loss = loss_fn(pred, y.squeeze())
@@ -210,10 +216,11 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-
-        if batch % 10 == 0:
-            loss, current = loss.item(), (batch + 1) * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+         
+        loss, current = loss.item(), (batch + 1) * len(X)
+        end = time.time()
+        elapsed = end - start
+        print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}], elapsed: {elapsed:>5f} seconds.")
 
 
 def test_loop(dataloader, model, loss_fn):
