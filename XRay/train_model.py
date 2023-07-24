@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 import glob
 
 import numpy as np
@@ -17,9 +17,9 @@ import tensorflow.keras.backend as K
 from batch_generator import batch_generator
 
 K.clear_session()
-gpus = tf.config.experimental.list_physical_devices("GPU")
-if len(gpus) > 0:
-    tf.config.experimental.set_memory_growth(gpus[0], True)
+# gpus = tf.config.experimental.list_physical_devices("GPU")
+# if len(gpus) > 0:
+#    tf.config.experimental.set_memory_growth(gpus[0], True)
 
 tf.compat.v1.disable_eager_execution()
 
@@ -99,9 +99,23 @@ weights_filename = scripts_directory + "xray_classification.h5"
 
 if os.path.exists(weights_filename):
     model.load_weights(weights_filename)
+else:
+    flip_model = antspynet.create_resnet_model_2d((None, None, 1),
+        number_of_classification_labels=3,
+        mode="classification",
+        layers=(1, 2, 3, 4),
+        residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+        cardinality=1, squeeze_and_excite=False)
+    flip_weights_filename = scripts_directory + "xray_flip_classification.h5"
+    flip_model.load_weights(flip_weights_filename)
+    
+    for i in range(len(model.layers)-1):
+        print("Transferring layer " + str(i))
+        model.get_layer(index=i).set_weights(flip_model.get_layer(index=i).get_weights())
 
 model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True))
+              loss=tf.keras.losses.BinaryFocalCrossentropy(from_logits=True),
+              metrics=[tf.keras.metrics.BinaryAccuracy()])
 
 ###
 #

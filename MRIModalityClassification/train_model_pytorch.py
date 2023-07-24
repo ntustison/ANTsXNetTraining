@@ -20,7 +20,8 @@ torch.device(3)
 
 base_directory = '/home/ntustison/Data/MRIModalityClassification/'
 scripts_directory = base_directory + 'Scripts/'
-data_directory = base_directory + "Nifti/"
+data_directory = base_directory
+brats_directory = '/home/ntustison/Data/BRATS/TCIA/'
 
 image_size = (112, 112, 112)
 resample_size = (2, 2, 2)
@@ -39,14 +40,7 @@ ants.set_origin(template, (0, 0, 0))
 #
 ################################################
 
-# modalities:
-#     T1
-#     T2
-#     FLAIR
-#     T2Star
-#     Mean DWI
-#     Mean Bold
-#     ASL perfusion
+modalities = ("T1", "T2", "FLAIR", "T2Star", "Mean DWI", "Mean Bold", "ASL perfusion")
 
 number_of_classification_labels = 7
 channel_size = 1
@@ -87,25 +81,29 @@ if os.path.exists(weights_filename):
 
 print("Loading brain data.")
 
-t1_images = glob.glob(data_directory + "**/*T1w.nii.gz", recursive=True)
-t2_images = glob.glob(data_directory + "**/*T2w.nii.gz", recursive=True)
-flair_images = glob.glob(data_directory + "**/*FLAIR.nii.gz", recursive=True)
+t1_images = (*glob.glob(data_directory + "**/*T1w.nii.gz", recursive=True),
+             *glob.glob(brats_directory + "**/*T1*.nii.gz", recursive=True))
+t2_images = (*glob.glob(data_directory + "**/*T2w.nii.gz", recursive=True),
+             *glob.glob(brats_directory + "**/*T2*.nii.gz", recursive=True))
+flair_images = (*glob.glob(data_directory + "**/*FLAIR.nii.gz", recursive=True),
+                *glob.glob(brats_directory + "**/*FLAIR*.nii.gz", recursive=True))
 t2star_images = glob.glob(data_directory + "**/*T2starw.nii.gz", recursive=True)
 dwi_images = glob.glob(data_directory + "**/*MeanDwi.nii.gz", recursive=True)
 bold_images = glob.glob(data_directory + "**/*MeanBold.nii.gz", recursive=True)
 perf_images = glob.glob(data_directory + "**/*asl.nii.gz", recursive=True)
 
-images = t1_images + t2_images + flair_images + t2star_images + dwi_images + bold_images + perf_images
-modalities = np.concatenate((
-             np.zeros((len(t1_images),), dtype=np.int8),
-             np.zeros((len(t2_images),), dtype=np.int8) + 1,
-             np.zeros((len(flair_images),), dtype=np.int8) + 2,
-             np.zeros((len(t2star_images),), dtype=np.int8) + 3,
-             np.zeros((len(dwi_images),), dtype=np.int8) + 4,
-             np.zeros((len(bold_images),), dtype=np.int8) + 5,
-             np.zeros((len(perf_images),), dtype=np.int8) + 6),
-             dtype=np.int8
-             )
+images = list()
+images.append(t1_images)
+images.append(t2_images)
+images.append(flair_images)
+images.append(t2star_images)
+images.append(dwi_images)
+images.append(bold_images)
+images.append(perf_images)
+
+for i in range(len(images)):
+    print("Number of", modalities[i], "images: ", len(images[i]))
+
 
 print( "Training")
 
@@ -121,7 +119,7 @@ class MRIDataset(Dataset):
     def __init__(self,
                  image_files,
                  template,
-                 modalities):
+                 number_of_samples=1):
         """
         Arguments:
             csv_file (string): Path to the csv file with annotations.
@@ -131,18 +129,20 @@ class MRIDataset(Dataset):
         """
         self.image_files = image_files
         self.template = template
-        self.modalities = modalities
+        self.number_of_samples = number_of_samples
 
     def __len__(self):
-        return len(self.image_files)
+        return self.number_of_samples
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        random_index = random.sample(list(range(len(self.image_files))), 1)[0]
+        number_of_classes = 7  
+        random_modality = random.sample(list(range(number_of_classes)), 1)[0]
+        random_index = random.sample(list(range(len(self.image_files[random_modality]))), 1)[0]
 
-        image = ants.image_read(self.image_files[random_index])
+        image = ants.image_read(self.image_files[random_modality][random_index])
 
         center_of_mass_template = ants.get_center_of_mass(template*0 + 1)
         center_of_mass_image = ants.get_center_of_mass(image*0 + 1)
@@ -151,7 +151,7 @@ class MRIDataset(Dataset):
             center=np.asarray(center_of_mass_template), translation=translation)
         image = ants.apply_ants_transform_to_image(xfrm, image, template)
 
-        if random.uniform(0.0, 1.0) < 0.75:
+        if random.uniform(0.0, 1.0) < 0.9:
             noise_model = None
             if random.uniform(0.0, 1.0) < 0.33:
                 noise_model = ("additivegaussian", "shot", "saltandpepper")
@@ -179,16 +179,16 @@ class MRIDataset(Dataset):
         image_array = image_array.transpose((3, 0, 1, 2))
         image_tensor = torch.from_numpy(image_array)
 
-        modality = int(float(self.modalities[random_index]))
+        modality = int(random_modality)
 
         return image_tensor, modality
 
 transformed_dataset = MRIDataset(image_files=images,
                                  template=template,
-                                 modalities=modalities)
-train_dataloader = DataLoader(transformed_dataset, batch_size=16,
+                                 number_of_samples=32)
+train_dataloader = DataLoader(transformed_dataset, batch_size=32,
                         shuffle=True, num_workers=4)
-test_dataloader = DataLoader(transformed_dataset, batch_size=16,
+test_dataloader = DataLoader(transformed_dataset, batch_size=8,
                         shuffle=True, num_workers=4)
 
 ###

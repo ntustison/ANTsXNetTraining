@@ -2,7 +2,7 @@ import ants
 import antspynet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import glob
 
 import numpy as np
@@ -22,7 +22,8 @@ tf.compat.v1.disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/MRIModalityClassification/'
 scripts_directory = base_directory + 'Scripts/'
-data_directory = base_directory + "Nifti/"
+data_directory = base_directory 
+brats_directory = '/home/ntustison/Data/BRATS/TCIA/'
 
 # image_size = (224, 224, 224)
 # resample_size = (1, 1, 1)
@@ -44,14 +45,7 @@ ants.set_origin(template, (0, 0, 0))
 #
 ################################################
 
-# modalities:
-#     T1
-#     T2
-#     FLAIR
-#     T2Star
-#     Mean DWI
-#     Mean Bold
-#     ASL perfusion
+modalities = ("T1", "T2", "FLAIR", "T2Star", "Mean DWI", "Mean Bold", "ASL perfusion")
 
 number_of_classification_labels = 7
 channel_size = 1
@@ -69,7 +63,8 @@ if os.path.exists(weights_filename):
     model.load_weights(weights_filename)
 
 model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-              loss=tf.keras.losses.CategoricalCrossentropy())
+              loss=tf.keras.losses.CategoricalCrossentropy(),
+              metrics=[tf.keras.metrics.CategoricalAccuracy()])
 
 ################################################
 #
@@ -79,25 +74,28 @@ model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
 
 print("Loading brain data.")
 
-t1_images = glob.glob(data_directory + "**/*T1w.nii.gz", recursive=True)
-t2_images = glob.glob(data_directory + "**/*T2w.nii.gz", recursive=True)
-flair_images = glob.glob(data_directory + "**/*FLAIR.nii.gz", recursive=True)
+t1_images = (*glob.glob(data_directory + "**/*T1w.nii.gz", recursive=True),
+             *glob.glob(brats_directory + "**/*T1*.nii.gz", recursive=True))
+t2_images = (*glob.glob(data_directory + "**/*T2w.nii.gz", recursive=True),
+             *glob.glob(brats_directory + "**/*T2*.nii.gz", recursive=True))
+flair_images = (*glob.glob(data_directory + "**/*FLAIR.nii.gz", recursive=True),
+                *glob.glob(brats_directory + "**/*FLAIR*.nii.gz", recursive=True))
 t2star_images = glob.glob(data_directory + "**/*T2starw.nii.gz", recursive=True)
 dwi_images = glob.glob(data_directory + "**/*MeanDwi.nii.gz", recursive=True)
 bold_images = glob.glob(data_directory + "**/*MeanBold.nii.gz", recursive=True)
 perf_images = glob.glob(data_directory + "**/*asl.nii.gz", recursive=True)
 
-images = t1_images + t2_images + flair_images + t2star_images + dwi_images + bold_images + perf_images
-modalities = np.concatenate((
-             np.zeros((len(t1_images),), dtype=np.int8),
-             np.zeros((len(t2_images),), dtype=np.int8) + 1,
-             np.zeros((len(flair_images),), dtype=np.int8) + 2,
-             np.zeros((len(t2star_images),), dtype=np.int8) + 3,
-             np.zeros((len(dwi_images),), dtype=np.int8) + 4,
-             np.zeros((len(bold_images),), dtype=np.int8) + 5,
-             np.zeros((len(perf_images),), dtype=np.int8) + 6),
-             dtype=np.int8
-             )
+images = list()
+images.append(t1_images)
+images.append(t2_images)
+images.append(flair_images)
+images.append(t2star_images)
+images.append(dwi_images)
+images.append(bold_images)
+images.append(perf_images)
+
+for i in range(len(images)):
+    print("Number of", modalities[i], "images: ", len(images[i]))
 
 print( "Training")
 
@@ -110,8 +108,7 @@ batch_size = 16
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=images,
-                            template=template,
-                            modalities=modalities)
+                            template=template)
 
 track = model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,
     callbacks=[
