@@ -248,7 +248,7 @@ def test_loop(dataloader, model, loss_fn):
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
 
-current_loss = 0.0
+current_loss = 1000000.0
 
 epochs = 200
 for t in range(epochs):
