@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import glob
 
 import numpy as np
@@ -47,22 +47,42 @@ train_images_list = [x.strip() for x in train_images_list]
 #
 ################################################
 
-image_size=(1024, 1024)
-
+# image_size=(1024, 1024)
+image_size=(224, 224)
 
 model = antspynet.create_resnet_model_2d((None, None, 1),
    number_of_classification_labels=3,
    mode="classification",
    layers=(1, 2, 3, 4),
-   residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+   residual_block_schedule=(2, 2, 2, 2), lowest_resolution=64,
    cardinality=1, squeeze_and_excite=False)
+
+# model = tf.keras.applications.DenseNet121(include_top=False, 
+#                                           weights=None, 
+#                                           input_tensor=None, 
+#                                           input_shape=(*image_size, 3), 
+#                                           pooling='avg', 
+#                                           classes=3, 
+#                                           classifier_activation='softmax')
+
+# model = antspynet.create_densenet_model_2d((*image_size, 3),
+#                                           number_of_classification_labels=3,
+#                                            number_of_filters=16,
+#                                            depth=121,
+#                                            number_of_dense_blocks=1,
+#                                            growth_rate=32,
+#                                            dropout_rate=0.0,
+#                                           weight_decay=1e-4, 
+#                                            mode='classification'
+#                                            )
+
 
 weights_filename = scripts_directory + "xray_flip_classification.h5"
 
 if os.path.exists(weights_filename):
     model.load_weights(weights_filename)
 
-model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
+model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.CategoricalCrossentropy(),
               metrics=[tf.keras.metrics.CategoricalAccuracy()])
 
@@ -73,13 +93,13 @@ model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
 # Set up the training generator
 #
 
-batch_size = 8
+batch_size = 16 
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=train_images_list,
                             image_size=image_size)
 
-track = model.fit(x=generator, epochs=10000, verbose=1, steps_per_epoch=64,
+track = model.fit(x=generator, epochs=10000, verbose=1, steps_per_epoch=100,
     callbacks=[
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
