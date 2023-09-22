@@ -22,7 +22,7 @@ data_directory = base_directory + "Data/"
 #
 ################################################
 
-test_images_file = base_directory + "CXR8-selected/test_list.txt"
+test_images_file = base_directory + "CXR8-selected/train_val_list.txt"
 with open(test_images_file) as f:
     test_images_list = f.readlines()
 f.close()
