@@ -100,6 +100,31 @@ for i in range(len(t1_files)):
         training_brain_mask_files.append(mask_file)
         training_seg_files.append(seg_file)
 
+t1_files = glob.glob(base_directory + "new-not-previously-in-TCIA/*/*_t1.nii.gz")
+
+for i in range(len(t1_files)):
+
+    t1_file = t1_files[i] 
+    t2_file = t1_file.replace("t1", "t2")
+    t1gd_file = t1_file.replace("t1", "t1ce")
+    flair_file = t1_file.replace("t1", "flair") 
+    seg_file = t1_file.replace("t1", "seg") 
+
+    if(os.path.exists(t1_file) and 
+       os.path.exists(t2_file) and
+       os.path.exists(t1gd_file) and
+       os.path.exists(flair_file) and
+       os.path.exists(mask_file) and
+       os.path.exists(seg_file)):
+
+        training_t1_files.append(t1_file)
+        training_t2_files.append(t2_file)
+        training_t1gd_files.append(t1gd_file)
+        training_flair_files.append(flair_file)
+        training_brain_mask_files.append(mask_file)
+        training_seg_files.append(seg_file)
+
+
 print("Total training image files: ", len(training_t1_files))
 
 print( "Training")
