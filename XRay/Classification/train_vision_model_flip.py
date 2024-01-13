@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["TF_GPU_ALLOCATOR"]="cuda_malloc_async"
 import glob
 
 import numpy as np
@@ -21,7 +22,7 @@ gpus = tf.config.experimental.list_physical_devices("GPU")
 if len(gpus) > 0:
     tf.config.experimental.set_memory_growth(gpus[0], True)
 
-tf.compat.v1.disable_eager_execution()
+# tf.compat.v1.disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/XRayCT/'
 # base_directory = '/Users/ntustison/Data/Public/XRayCT/'
@@ -47,33 +48,28 @@ train_images_list = [x.strip() for x in train_images_list]
 #
 ################################################
 
-image_size=(1024, 1024)
+image_size = (72, 72)
+# image_size = (1024, 1024)
 
+model = antspynet.create_vision_transformer_model_2d((*image_size, 1),
+        number_of_classification_labels=2,
+        number_of_attention_heads=4)
+model.summary()
 
-model = antspynet.create_resnet_model_2d((None, None, 1),
-   number_of_classification_labels=3,
-   mode="classification",
-   layers=(1, 2, 3, 4),
-   residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
-   cardinality=1, squeeze_and_excite=False)
-
-weights_filename = scripts_directory + "xray_flip_classification.h5"
+weights_filename = scripts_directory + "xray_flip_vision_classification.h5"
 
 if os.path.exists(weights_filename):
     model.load_weights(weights_filename)
 
 model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-              loss=tf.keras.losses.CategoricalCrossentropy(),
-              metrics=[tf.keras.metrics.CategoricalAccuracy()])
-
-
+              loss=tf.keras.losses.CategoricalCrossentropy())
 
 ###
 #
 # Set up the training generator
 #
 
-batch_size = 8
+batch_size = 32 
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=train_images_list,

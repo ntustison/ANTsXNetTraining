@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import glob
 
 import numpy as np
@@ -21,7 +21,7 @@ K.clear_session()
 # if len(gpus) > 0:
 #    tf.config.experimental.set_memory_growth(gpus[0], True)
 
-tf.compat.v1.disable_eager_execution()
+# tf.compat.v1.disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/XRayCT/'
 # base_directory = '/Users/ntustison/Data/Public/XRayCT/'
@@ -65,7 +65,6 @@ for i in range(len(unique_labels)):
 
 unique_labels = unique(unique_labels_unroll)
 
-# train_images_list = train_images_list[:1000]
 training_demo_file = base_directory + "training_demo.npy"
 training_demo = None
 if os.path.exists(training_demo_file):
@@ -92,10 +91,17 @@ model = antspynet.create_resnet_model_2d((None, None, 1),
    number_of_classification_labels=number_of_classification_labels,
    mode="regression",
    layers=(1, 2, 3, 4),
-   residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+   residual_block_schedule=(2, 2, 2, 2), lowest_resolution=64,
    cardinality=1, squeeze_and_excite=False)
 
-weights_filename = scripts_directory + "xray_classification.h5"
+# model = antspynet.create_resnet_model_2d((None, None, 1),
+#    number_of_classification_labels=number_of_classification_labels,
+#    mode="regression",
+#    layers=(1, 2, 3, 4),
+#    residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+#    cardinality=1, squeeze_and_excite=False)
+
+weights_filename = scripts_directory + "xray_classification_with_augmentation.h5"
 
 if os.path.exists(weights_filename):
     model.load_weights(weights_filename)
@@ -104,7 +110,7 @@ else:
         number_of_classification_labels=3,
         mode="classification",
         layers=(1, 2, 3, 4),
-        residual_block_schedule=(3, 4, 6, 3), lowest_resolution=64,
+        residual_block_schedule=(2, 2, 2, 2), lowest_resolution=64,
         cardinality=1, squeeze_and_excite=False)
     flip_weights_filename = scripts_directory + "xray_flip_classification.h5"
     flip_model.load_weights(flip_weights_filename)
@@ -113,7 +119,7 @@ else:
         print("Transferring layer " + str(i))
         model.get_layer(index=i).set_weights(flip_model.get_layer(index=i).get_weights())
 
-model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
+model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.BinaryFocalCrossentropy(from_logits=True),
               metrics=[tf.keras.metrics.BinaryAccuracy()])
 
@@ -122,20 +128,21 @@ model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
 # Set up the training generator
 #
 
-batch_size = 8
+batch_size = 12 
 
 generator = batch_generator(batch_size=batch_size,
                             image_files=train_images_list,
-                            demo=training_demo)
+                            demo=training_demo,
+                            do_augmentation=True)
 
-track = model.fit(x=generator, epochs=10000, verbose=1, steps_per_epoch=128,
+track = model.fit(x=generator, epochs=10000, verbose=1, steps_per_epoch=32,
     callbacks=[
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
-       keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5,
-          verbose=1, patience=10, mode='auto'),
-       keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001,
-          patience=20)
+       keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.95,
+          verbose=1, patience=10, mode='auto')
+#       keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0000001,
+#          patience=20)
        ]
    )
 
