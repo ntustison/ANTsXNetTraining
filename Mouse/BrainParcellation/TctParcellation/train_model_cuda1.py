@@ -33,7 +33,7 @@ base_directory = '/home/ntustison/Data/Mouse/TsungChihTsai/'
 print("Loading brain data.")
 
 template_file = base_directory + "P56_MRI-T2_50um.nii.gz"
-labels_file = base_directory + "combined_mask_propagated_tct.nii.gz"
+labels_file = base_directory + "combined_mask_tct_warped_to_devccf.nii.gz"
 
 template = ants.image_read(template_file)
 labels = ants.image_read(labels_file)
@@ -83,7 +83,7 @@ unet_model = antspynet.create_unet_model_3d((*template.shape, channel_size),
   # dropout_rate=0.0, weight_decay=1e-5, additional_options=("attentionGating",))
 
 
-dice_loss = antspynet.multilabel_dice_coefficient(dimensionality = 3, smoothing_factor=0.0)
+dice_loss = antspynet.multilabel_dice_coefficient(dimensionality=3, smoothing_factor=0.0)
 ce_loss = antspynet.weighted_categorical_crossentropy((1, *tuple([10] * (number_of_classification_labels - 1 ))))
 
 weights_filename = base_directory + "weights.h5"
@@ -106,7 +106,7 @@ else:
         unet_model.get_layer(index=i).set_weights(unet_model2.get_layer(index=i).get_weights())
     
 unet_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-                    loss=ce_loss,
+                    loss=dice_loss,
                     metrics=[dice_loss])
 
 ###
