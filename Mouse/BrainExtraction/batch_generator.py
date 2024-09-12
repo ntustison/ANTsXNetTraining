@@ -121,7 +121,7 @@ def batch_generator(batch_size=32,
 
             # image = ants.rank_intensity(image)
             # image = ants.histogram_match_image(image, template)        
-            image = (image - image.min()) / (image.max() - image.min())
+            image = ants.iMath_normalize(image)
 
             X[batch_count,:,:,:,0] = image.numpy()
             Y[batch_count,:,:,:] = label.numpy()
@@ -132,8 +132,8 @@ def batch_generator(batch_size=32,
             if batch_count >= batch_size:
                 break
 
-        encY = antspynet.encode_unet(Y, (0, 1))
-        yield X, encY, None
+        # encY = antspynet.encode_unet(Y, (0, 1))
+        yield X, Y, None
 
 
 
