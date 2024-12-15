@@ -94,15 +94,22 @@ def batch_generator(batch_size,
                                                         use_voxels=False, interp_type=0)
                 image = ants.resample_image_to_target(downsampled_image, image)
  
-            if do_random_contralateral_flips: # and random.sample((True, False), 1)[0]:
+            if do_random_contralateral_flips and random.sample((True, False), 1)[0]:
                 tic = time.perf_counter()
-                # Turn this off because of the contralateral labeling.   
-                # image_array = image.numpy()
-                # image_array = np.flip(image_array, axis=0)
-                # image = ants.from_numpy_like(image_array, image)
-                # segmentation_array = segmentation.numpy()
-                # segmentation_array = np.flip(segmentation_array, axis=0)
-                # segmentation = ants.from_numpy_like(segmentation_array, segmentation)
+                image_array = image.numpy()
+                image_array = np.flip(image_array, axis=0)
+                image = ants.from_numpy_like(image_array, image)
+                segmentation_array = segmentation.numpy()
+                segmentation_array = np.flip(segmentation_array, axis=0)
+                segmentation = ants.from_numpy_like(segmentation_array, segmentation)
+                hoa_lateral_left_labels = (1, 7, 9, 11, 13, 16, 18, 20, 22, 25, 27, 29, 31)
+                hoa_lateral_right_labels = (2, 8, 10, 12, 14, 17, 19, 21, 23, 26, 28, 30, 32)
+                for ll in range(len(hoa_lateral_left_labels)):
+                    label = hoa_lateral_left_labels[ll]
+                    contra_label = hoa_lateral_right_labels[ll]
+                    segmentation[segmentation == label] = -1
+                    segmentation[segmentation == contra_label] = label
+                    segmentation[segmentation == -1] = contra_label
                 toc = time.perf_counter()
                 if verbose:
                     print(f"    Random contralateral flip {toc - tic:0.4f} seconds")

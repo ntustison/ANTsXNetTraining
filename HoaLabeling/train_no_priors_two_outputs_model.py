@@ -118,9 +118,8 @@ if os.path.exists(weights_filename):
     unet2_model.load_weights(weights_filename)
 
 unet2_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-                    loss=[multilabel_combined_loss(0.75), binary_surface_loss],
-                    loss_weights=[0.9, 0.1],
-                    metrics=[dice_loss, binary_dice_loss])
+                    loss=[dice_loss, binary_dice_loss],
+                    loss_weights=[0.9, 0.1])
 
 
 
@@ -140,14 +139,14 @@ generator = batch_generator(batch_size=batch_size,
                     do_histogram_equalization=False,
                     do_histogram_rank_intensity=False,
                     do_simulate_bias_field=True,
-                    do_add_noise=False,
-                    do_random_transformation=False,
-                    do_random_contralateral_flips=False,
-                    do_resampling=False,
+                    do_add_noise=True,
+                    do_random_transformation=True,
+                    do_random_contralateral_flips=True,
+                    do_resampling=True,
                     use_multiple_outputs=True,
                     verbose=False)
 
-track = unet2_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,
+track = unet2_model.fit(x=generator, epochs=10, verbose=1, steps_per_epoch=32,
     callbacks=[
        keras.callbacks.CSVLogger(scripts_directory + "no_priors_model_log.csv", append=True, separator=';'), 
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
