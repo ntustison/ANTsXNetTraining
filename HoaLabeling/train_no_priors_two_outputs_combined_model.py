@@ -83,6 +83,11 @@ unet_model = antspynet.create_unet_model_3d((*template.shape, channel_size),
 weights = [1.0] * number_of_classification_labels
 weights[0] = 0.001
 
+increase_labels = (3, 4, 6, 7, 18, 24)
+for i in range(len(increase_labels)):
+    weights[labels.index(increase_labels[i])] = 10.0
+weights[labels.index(6)] = 100.0
+
 ce_loss = antspynet.weighted_categorical_crossentropy(weights=tuple(weights))
 # ce_loss = tf.keras.losses.CategoricalCrossentropy()
 
@@ -96,6 +101,13 @@ def multilabel_combined_loss(alpha=0.5):
     def multilabel_combined_loss_fixed(y_true, y_pred):
         loss = (alpha * dice_loss(y_true, y_pred) + 
                 (1-alpha) * surface_loss(y_true, y_pred)) 
+        return(loss)
+    return multilabel_combined_loss_fixed
+
+def multilabel_combined_loss2(alpha=0.5):
+    def multilabel_combined_loss_fixed(y_true, y_pred):
+        loss = (alpha * dice_loss(y_true, y_pred) + 
+                (1-alpha) * ce_loss(y_true, y_pred)) 
         return(loss)
     return multilabel_combined_loss_fixed
 
@@ -118,7 +130,7 @@ if os.path.exists(weights_filename):
     unet2_model.load_weights(weights_filename)
 
 unet2_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
-                    loss=[dice_loss, binary_dice_loss],
+                    loss=[multilabel_combined_loss2(0.9), binary_dice_loss],
                     loss_weights=[0.75, 0.25],
                     metrics=[dice_loss, None])
 
