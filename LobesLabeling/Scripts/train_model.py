@@ -23,7 +23,7 @@ template = ants.image_read(antspynet.get_antsxnet_data("hcpyaT1Template"))
 template_mask = ants.image_read(antspynet.get_antsxnet_data("hcpyaTemplateBrainMask"))
 template = template * template_mask
 
-crop_size = (160, 176, 160)
+crop_size = (160, 192, 160)
 
 def reshape_image(image, interp_type = "linear", crop_size=crop_size):
     image_resampled = None
