@@ -71,9 +71,9 @@ generator = batch_generator(batch_size=batch_size,
 
 track = nvp_model.fit(x=generator, epochs=10, verbose=1, steps_per_epoch=32,
     callbacks=[
-       keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
+       keras.callbacks.ModelCheckpoint(weights_filename, monitor='negative_log_likelihood',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
-       keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.95,
+       keras.callbacks.ReduceLROnPlateau(monitor='negative_log_likelihood', factor=0.95,
           verbose=1, patience=20, mode='auto'),
     #    keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.000001,
     #       patience=20)
