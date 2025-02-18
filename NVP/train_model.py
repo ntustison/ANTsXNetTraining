@@ -42,7 +42,8 @@ image_size = (256, 256, 1)
 nvp_model = create_normalizing_flow_model((image_size), 
     hidden_layers=[512, 512], flow_steps=6, regularization=0.0,
     validate_args=False)
-nvp_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4))
+nvp_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
+                  loss='negative_log_likelihood')
 
 weights_filename = scripts_directory + "nvp_t1_axial.h5"
 

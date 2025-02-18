@@ -107,7 +107,7 @@ def create_normalizing_flow_model(input_size,
                     tf.print("NaN or Inf detected in gradients.")
                 gradients = [tf.clip_by_value(g, -1.0, 1.0) for g in gradients]
             self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
-            bits_per_dimension_divisor = np.prod(self.image_shape) * tf.math.log(2.0)
+            bits_per_dimension_divisor = self.input_length * tf.math.log(2.0)
             bpd = negative_log_likelihood / bits_per_dimension_divisor
             return {"neg_log_likelihood": negative_log_likelihood,
                     "bits_per_dim": bpd}
