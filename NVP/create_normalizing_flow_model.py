@@ -85,18 +85,18 @@ def create_normalizing_flow_model(input_size,
                     validate_args=validate_args,
                     name="{}_{}/realnvp".format(base_layer_name, i)))
                 
-                # Remove last permutation
-                flow_step_list = list(flow_step_list[:])
-                
-                self.flow_bijector_chain = tfp.bijectors.Chain(flow_step_list,
-                                                               validate_args=validate_args,
-                                                               name=base_layer_name)
+            # Remove last permutation
+            flow_step_list = list(flow_step_list[1:])
+            
+            self.flow_bijector_chain = tfp.bijectors.Chain(flow_step_list,
+                                                            validate_args=validate_args,
+                                                            name=base_layer_name)
 
-                base_distribution = tfp.distributions.MultivariateNormalDiag(loc=[0.0] * self.input_length)  
-                self.flow = tfp.distributions.TransformedDistribution(
-                    distribution=base_distribution,
-                    bijector=self.flow_bijector_chain,
-                    name="top_level_flow_model")
+            base_distribution = tfp.distributions.MultivariateNormalDiag(loc=[0.0] * self.input_length)  
+            self.flow = tfp.distributions.TransformedDistribution(
+                distribution=base_distribution,
+                bijector=self.flow_bijector_chain,
+                name="top_level_flow_model")
 
         @tf.function
         def call(self, inputs):
@@ -123,7 +123,7 @@ def create_normalizing_flow_model(input_size,
         @tf.function
         def forward(self, inputs):
             # input to gaussian points
-            return self.call(self, inputs)
+            return self.call(inputs)
 
         @tf.function
         def inverse(self, outputs):
@@ -132,10 +132,12 @@ def create_normalizing_flow_model(input_size,
                 return self.flow.bijector.inverse(outputs)        
             else:
                 if mask is None:
-                    inverse_outputs = self.flow.bijector.inverse(outputs)        
-                    image_batch_array = tf.reshape(inverse_outputs, (-1, self.input_size))
+                    inverse_outputs = self.flow.bijector.inverse(outputs)  
+                    print("Mean: ", inverse_outputs.numpy().mean())
+                    print("Std: ", inverse_outputs.numpy().std())
+                    image_batch_array = tf.reshape(inverse_outputs, (-1, *self.input_size))
                 else:
-                    batch_size = outputs.shape[0] / self.input_length 
+                    batch_size = outputs.shape[0]
                     image_batch_array = np.zeros((batch_size, *self.input_size))
                     if len(self.nonzero_indices) == 2:
                         image_batch_array[:,self.nonzero_indices[0],
@@ -158,7 +160,17 @@ def create_normalizing_flow_model(input_size,
                     train_data = tf.reshape(data, (-1, self.input_length))
                 else:
                     nonzero_indices = mask.numpy().nonzero()
-                    train_data = tf.reshape(data[:,nonzero_indices[0], nonzero_indices[1],:], (-1, self.input_length))
+                    if len(self.nonzero_indices) == 2:
+                        train_data = tf.reshape(data[:,nonzero_indices[0], 
+                                                       nonzero_indices[1],:], 
+                                                (-1, self.input_length))
+                    elif len(self.nonzero_indices) == 3:    
+                        train_data = tf.reshape(data[:,nonzero_indices[0], 
+                                                       nonzero_indices[1],
+                                                       nonzero_indices[2],:], 
+                                                (-1, self.input_length))
+                    else:
+                        raise ValueError("Error:  incorrect image dimensionality.")    
 
             with tf.GradientTape() as tape:
                 log_probability = self.flow.log_prob(train_data)
@@ -173,7 +185,7 @@ def create_normalizing_flow_model(input_size,
             self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
             bits_per_dimension_divisor = self.input_length * tf.math.log(2.0)
             bpd = negative_log_likelihood / bits_per_dimension_divisor
-            return {"neg_log_likelihood": negative_log_likelihood,
+            return {"negative_log_likelihood": negative_log_likelihood,
                     "bits_per_dim": bpd}
         
 

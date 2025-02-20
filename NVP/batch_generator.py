@@ -18,7 +18,8 @@ def batch_generator(batch_size,
                     verbose=False
                     ):
 
-    X = np.zeros((batch_size, np.prod(image_size)))
+    X = np.zeros((batch_size, *image_size))
+    # X = np.zeros((batch_size, np.prod(image_size)))
 
     while True:
 
@@ -134,12 +135,15 @@ def batch_generator(batch_size,
                 if verbose:
                     print(f"    Add noise {toc - tic:0.4f} seconds")
              
-            X_img_array = np.zeros((*image_size, len(images))) 
+            # X_img_array = np.zeros((*image_size, len(images))) 
+            # for i in range(len(images)):                
+            #     images[i] = ants.iMath_normalize(images[i])
+            #     X_img_array[:,:,i] = np.expand_dims(images[i].numpy(), axis=-1)
+            # X[batch_count,:] = X_img_array.flatten()
+
             for i in range(len(images)):                
                 images[i] = ants.iMath_normalize(images[i])
-                X_img_array[:,:,i] = np.expand_dims(images[i].numpy(), axis=-1)
-            X[batch_count,:] = X_img_array.flatten()
-
+                X[batch_count,:,:,i] = images[i].numpy()
             batch_count += 1    
                                 
             if batch_count >= batch_size:

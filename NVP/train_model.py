@@ -39,13 +39,13 @@ print("Total number of training brain slices: ", str(len(brain_slice_files)))
 
 image_size = (256, 256, 1)
 
-nvp_model = create_normalizing_flow_model((image_size), 
+nvp_model = create_normalizing_flow_model(image_size, 
     hidden_layers=[512, 512], flow_steps=6, regularization=0.0,
     validate_args=False)
 nvp_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
                   loss='negative_log_likelihood')
 
-weights_filename = scripts_directory + "nvp_t1_axial.h5"
+weights_filename = scripts_directory + "nvp_t1_axial"
 
 if os.path.exists(weights_filename):
     print("Loading " + weights_filename)
@@ -69,7 +69,7 @@ generator = batch_generator(batch_size=batch_size,
                             do_resampling=False,
                             verbose=False)
 
-track = nvp_model.fit(x=generator, epochs=10, verbose=1, steps_per_epoch=32,
+track = nvp_model.fit(x=generator, epochs=100, verbose=1, steps_per_epoch=32,
     callbacks=[
        keras.callbacks.ModelCheckpoint(weights_filename, monitor='negative_log_likelihood',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
