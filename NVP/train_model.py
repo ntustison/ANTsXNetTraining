@@ -1,25 +1,13 @@
-import ants
-import antspynet
-
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-os.environ["ITK_DEFAULT_GLOBAL_NUMBER_OF_THREADS"] = "4"
-
 import glob
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["TF_USE_LEGACY_KERAS"] = "True"
+
 import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
 
 from batch_generator import batch_generator
 from create_normalizing_flow_model import create_normalizing_flow_model
-
-K.clear_session()
-# gpus = tf.config.experimental.list_physical_devices("GPU")
-# if len(gpus) > 0:
-#     tf.config.experimental.set_memory_growth(gpus[0], True)
-
-# tf.compat.v1.disable_eager_execution()
 
 base_directory = '/home/ntustison/Data/NVP/'
 scripts_directory = base_directory + 'Scripts/'
@@ -42,10 +30,11 @@ image_size = (256, 256, 1)
 nvp_model = create_normalizing_flow_model(image_size, 
     hidden_layers=[512, 512], flow_steps=6, regularization=0.0,
     validate_args=False)
-nvp_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=2e-4),
+nvp_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
                   loss='negative_log_likelihood')
+nvp_model.summary()
 
-weights_filename = scripts_directory + "nvp_t1_axial"
+weights_filename = scripts_directory + "nvp_t1_axial.weights.h5"
 
 if os.path.exists(weights_filename):
     print("Loading " + weights_filename)
@@ -71,9 +60,9 @@ generator = batch_generator(batch_size=batch_size,
 
 track = nvp_model.fit(x=generator, epochs=100, verbose=1, steps_per_epoch=32,
     callbacks=[
-       keras.callbacks.ModelCheckpoint(weights_filename, monitor='negative_log_likelihood',
+       tf.keras.callbacks.ModelCheckpoint(weights_filename, monitor='negative_log_likelihood',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
-       keras.callbacks.ReduceLROnPlateau(monitor='negative_log_likelihood', factor=0.95,
+       tf.keras.callbacks.ReduceLROnPlateau(monitor='negative_log_likelihood', factor=0.95,
           verbose=1, patience=20, mode='auto'),
     #    keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.000001,
     #       patience=20)

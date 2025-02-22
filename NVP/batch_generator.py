@@ -149,5 +149,5 @@ def batch_generator(batch_size,
             if batch_count >= batch_size:
                 break
 
-        yield X
+        yield (X,)
 
