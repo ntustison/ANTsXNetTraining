@@ -18,9 +18,8 @@ image = ants.image_clone(template)
 image = ants.add_noise_to_image(image, noise_model="additivegaussian", noise_parameters = (0.0, 0.01))
 
 weights_file = tf.keras.utils.get_file("ferretCtBrainExtraction3D.weights.h5", weights_url)
-template = ants.image_read(template_file)
 
-print("Warping to T1 ferret template.")
+print("Warping to CT ferret template.")
 
 center_of_mass_reference = ants.get_center_of_mass(template * 0 + 1)
 center_of_mass_image = ants.get_center_of_mass(image * 0 + 1)

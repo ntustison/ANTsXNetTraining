@@ -17,7 +17,6 @@ image = ants.image_clone(template)
 image = ants.add_noise_to_image(image, noise_model="additivegaussian", noise_parameters = (0.0, 0.01))
 
 weights_file = tf.keras.utils.get_file("ferretT1wBrainExtraction3D.weights.h5", weights_url)
-template = ants.image_read(template_file)
 
 print("Warping to T1 ferret template.")
 
