@@ -28,7 +28,7 @@ print("Total number of training brain slices: ", str(len(brain_slice_files)))
 image_size = (256, 256, 1)
 
 nvp_model = create_normalizing_flow_model(image_size, 
-    hidden_layers=[512, 512], flow_steps=6, regularization=0.0,
+    hidden_layers=[512, 512], flow_steps=6, regularization=0.01,
     validate_args=False)
 nvp_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
                   loss='negative_log_likelihood')
@@ -45,20 +45,20 @@ if os.path.exists(weights_filename):
 # Set up the training generator
 #
 
-batch_size = 64
+batch_size = 128
 
 generator = batch_generator(batch_size=batch_size,
                             input_image_files=brain_slice_files,
                             image_size=image_size,
                             do_histogram_intensity_warping=True,
-                            do_simulate_bias_field=False,
-                            do_add_noise=False,
-                            do_random_transformation=False,
-                            do_random_contralateral_flips=False,
+                            do_simulate_bias_field=True,
+                            do_add_noise=True,
+                            do_random_transformation=True,
+                            do_random_contralateral_flips=True,
                             do_resampling=False,
                             verbose=False)
 
-track = nvp_model.fit(x=generator, epochs=100, verbose=1, steps_per_epoch=32,
+track = nvp_model.fit(x=generator, epochs=100, verbose=1, steps_per_epoch=64,
     callbacks=[
        tf.keras.callbacks.ModelCheckpoint(weights_filename, monitor='negative_log_likelihood',
            save_best_only=True, save_weights_only=True, mode='auto', verbose=1),

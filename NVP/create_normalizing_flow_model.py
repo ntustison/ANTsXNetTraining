@@ -182,13 +182,13 @@ def create_normalizing_flow_model(input_size,
 
             with tf.GradientTape() as tape:
                 log_probability = self.flow.log_prob(train_data)
-                # if (tf.reduce_any(tf.math.is_nan(log_probability)) or 
-                #     tf.reduce_any(tf.math.is_inf(log_probability))):
-                #     tf.print("NaN or Inf detected in log_probability.")
+                if (tf.reduce_any(tf.math.is_nan(log_probability)) or 
+                    tf.reduce_any(tf.math.is_inf(log_probability))):
+                    tf.print("NaN or Inf detected in log_probability.")
                 negative_log_likelihood = -tf.reduce_mean(log_probability)
                 gradients = tape.gradient(negative_log_likelihood, self.flow.trainable_variables)
-                # if tf.reduce_any([tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g)) for g in gradients]):
-                #     tf.print("NaN or Inf detected in gradients.")
+                if tf.reduce_any([tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g)) for g in gradients]):
+                    tf.print("NaN or Inf detected in gradients.")
                 gradients = [tf.clip_by_value(g, -1.0, 1.0) for g in gradients]
             self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
             bits_per_dimension_divisor = self.input_length * tf.math.log(2.0)
