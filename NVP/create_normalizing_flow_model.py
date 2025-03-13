@@ -143,8 +143,6 @@ def create_normalizing_flow_model(input_size,
             else:
                 if mask is None:
                     inverse_outputs = self.flow.bijector.inverse(outputs)  
-                    print("Mean: ", inverse_outputs.numpy().mean())
-                    print("Std: ", inverse_outputs.numpy().std())
                     image_batch_array = tf.reshape(inverse_outputs, (-1, *self.input_size))
                 else:
                     batch_size = outputs.shape[0]
