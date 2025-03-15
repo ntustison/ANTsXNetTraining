@@ -12,6 +12,10 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
+import logging
+logger = tf.get_logger()
+logger.setLevel(logging.ERROR) 
+
 from batch_generator import batch_generator
 
 K.clear_session()
@@ -20,7 +24,7 @@ K.clear_session()
 #     tf.config.experimental.set_memory_growth(gpus[0], True)
 # tf.compat.v1.disable_eager_execution()
 
-# tf.config.run_functions_eagerly(True)
+tf.config.run_functions_eagerly(True)
 
 
 base_directory = '/home/ntustison/Data/Mouse/MuratMaga/'
@@ -71,8 +75,20 @@ unet_model = antspynet.create_unet_model_3d((*template.shape, channel_size),
    number_of_filters=number_of_filters,
    convolution_kernel_size=(3, 3, 3), deconvolution_kernel_size=(2, 2, 2))
 
-dice_loss = antspynet.multilabel_dice_coefficient(dimensionality=3, smoothing_factor=0.0)
 ce_loss = antspynet.weighted_categorical_crossentropy((1, *tuple([10] * (number_of_classification_labels - 1 ))))
+
+dice_loss = antspynet.multilabel_dice_coefficient(dimensionality=3, smoothing_factor=0.)
+surface_loss = antspynet.multilabel_surface_loss()
+
+binary_dice_loss = antspynet.binary_dice_coefficient(smoothing_factor=0.)
+binary_surface_loss = antspynet.binary_surface_loss()
+
+def multilabel_combined_loss(alpha=0.5):
+    def multilabel_combined_loss_fixed(y_true, y_pred):
+        loss = (alpha * dice_loss(y_true, y_pred) + 
+                (1-alpha) * surface_loss(y_true, y_pred)) 
+        return(loss)
+    return multilabel_combined_loss_fixed
 
 weights_filename = base_directory + "murat.weights.h5"
 if os.path.exists(weights_filename):
@@ -80,7 +96,7 @@ if os.path.exists(weights_filename):
     unet_model.load_weights(weights_filename)
     
 unet_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
-                    loss=dice_loss,
+                    loss=multilabel_combined_loss(0.75),
                     metrics=[dice_loss])
 
 ###
@@ -88,7 +104,7 @@ unet_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
 # Set up the training generator
 #
 
-batch_size = 2
+batch_size = 1
 
 generator = batch_generator(batch_size=batch_size,
                     template=template,

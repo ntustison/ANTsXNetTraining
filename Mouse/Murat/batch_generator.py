@@ -115,7 +115,7 @@ def batch_generator(batch_size=32,
                 image = ants.resample_image_to_target(image, template, interp_type='linear')
                     
             # image = ants.rank_intensity(image)
-            image = ants.histogram_match_image(image, template)        
+            # image = ants.histogram_match_image(image, template)        
             image = (image - image.min()) / (image.max() - image.min())
 
             X[batch_count,:,:,:,0] = image.numpy()
