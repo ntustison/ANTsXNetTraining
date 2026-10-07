@@ -1,0 +1,155 @@
+import ants
+import antspynet
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["ITK_DEFAULT_GLOBAL_NUMBER_OF_THREADS"] = "4"
+import glob
+
+import tensorflow as tf
+import tensorflow.keras as keras
+import tensorflow.keras.backend as K
+
+from batch_generator import batch_generator
+
+K.clear_session()
+
+gpus = tf.config.list_physical_devices("GPU")
+print("GPU disponibles :", gpus)
+
+if len(gpus) < 2:
+    raise RuntimeError("Deux GPU sont nécessaires pour cette configuration.")
+
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
+
+strategy = tf.distribute.MirroredStrategy(
+    devices=["/GPU:0", "/GPU:1"]
+)
+print("Nombre de répliques :", strategy.num_replicas_in_sync)
+
+
+# tf.compat.v1.disable_eager_execution()
+base_directory = '/home/ntustison/Data/ds004856/'
+scripts_directory = base_directory + "Scripts/"
+
+from batch_generator import batch_generator
+
+template = ants.image_read(antspynet.get_antsxnet_data("S_template3"))
+template = ants.resample_image(template, resample_params=(1.5, 1.5, 1.5))
+template = ants.pad_or_crop_image_to_size(template, (136, 176, 176))
+template_brain_mask = antspynet.brain_extraction(template, modality="t1")
+
+template_size = template.shape
+
+################################################
+#
+#  Create the model and load weights
+#
+################################################
+
+classes = ['background', 'brain']
+number_of_classification_labels = len(classes)
+image_modalities = ["T1"]
+channel_size = len(image_modalities)
+
+weights_filename = os.path.join(
+    scripts_directory, "brainExtractionPet.weights.h5"
+)
+
+with strategy.scope():
+    binary_dice_loss = antspynet.binary_dice_coefficient(
+        smoothing_factor=0.0
+    )
+    # surface_loss = antspynet.binary_surface_loss()
+    # ce_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+
+    unet_model = antspynet.create_unet_model_3d(
+        (*template_size, channel_size),
+        mode="sigmoid",
+        number_of_outputs=1,
+        number_of_filters=(16, 32, 64, 128),
+        dropout_rate=0.0,
+        convolution_kernel_size=3,
+        deconvolution_kernel_size=2,
+        weight_decay=1e-5,
+    )
+
+    if os.path.exists(weights_filename):
+        unet_model.load_weights(weights_filename)
+
+    unet_model.compile(
+        optimizer=tf.keras.optimizers.Adam(),
+        loss=binary_dice_loss,
+        metrics=[binary_dice_loss],
+        jit_compile="auto",
+    )
+
+
+
+################################################
+#
+#  Load the brain data
+#
+################################################
+
+print("Loading braindata.")
+
+base_data_directory = base_directory + '/PetBrainExtractionData/'
+mask_images = glob.glob(base_data_directory + "sub*/ses*/pet/*_mask.nii.gz")
+
+training_image_files = list()
+training_mask_files = list()
+
+for i in range(len(mask_images)):
+    mask = mask_images[i]
+    image = mask.replace("_mask.nii.gz", ".nii.gz")
+
+    if not os.path.exists(image) or not os.path.exists(mask):
+        # print(mask + " ---> " + image)
+        continue
+
+    training_image_files.append(image)
+    training_mask_files.append(mask)
+
+
+print("Total training image files: ", len(training_image_files))
+print( "Training")
+
+
+###
+#
+# Set up the training generator
+#
+
+batch_size = 4
+
+
+generator = batch_generator(batch_size=batch_size,
+                            image_size=template_size,
+                            template=template,
+                            template_brain_mask=template_brain_mask,                            
+                            images=training_image_files,
+                            brain_masks=training_mask_files,
+                            do_random_contralateral_flips=True,
+                            do_histogram_intensity_warping=True,
+                            do_simulate_bias_field=False,
+                            do_add_noise=False,
+                            do_data_augmentation=False)
+
+
+track = unet_model.fit(x=generator, epochs=200, verbose=1, steps_per_epoch=32,
+    callbacks=[
+       keras.callbacks.ModelCheckpoint(weights_filename, monitor='loss',
+           save_best_only=True, save_weights_only=True, mode='auto', verbose=1),
+       keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.95,
+          verbose=1, patience=20, mode='auto'),
+    #    keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.000001,
+    #       patience=20)
+       ]
+   )
+
+unet_model.save_weights(weights_filename)
+
+
+
